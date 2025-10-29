@@ -363,6 +363,7 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionArgumentCallbacks_$module(
     [global::System.ThreadStatic]
     private static global::System.Exception pendingException = null;
     private static int numExceptionsPending = 0;
+    private static global::System.Object exceptionsLock = null;
 
     public static bool Pending {
       get {
@@ -378,7 +379,7 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionArgumentCallbacks_$module(
       if (pendingException != null)
         throw new global::System.ApplicationException("FATAL: An earlier pending exception from unmanaged code was missed and thus not thrown (" + pendingException.ToString() + ")", e);
       pendingException = e;
-      lock(typeof($imclassname)) {
+      lock(exceptionsLock) {
         numExceptionsPending++;
       }
     }
@@ -389,12 +390,16 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionArgumentCallbacks_$module(
         if (pendingException != null) {
           e = pendingException;
           pendingException = null;
-          lock(typeof($imclassname)) {
+          lock(exceptionsLock) {
             numExceptionsPending--;
           }
         }
       }
       return e;
+    }
+
+    static SWIGPendingException() {
+      exceptionsLock = new global::System.Object();
     }
   }
 %}
@@ -443,6 +448,41 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterStringCallback_$module(SWIG_CSharpString
 %}
 #endif // SWIG_CSHARP_NO_STRING_HELPER
 
+#if !defined(SWIG_CSHARP_NO_STRING_WITH_LENGTH_HELPER)
+%pragma(csharp) imclasscode=%{
+  public class SWIGStringWithLengthHelper {
+
+    [global::System.Runtime.InteropServices.DllImport("$module", EntryPoint="SWIG_csharp_string_to_c")]
+    private static extern global::System.IntPtr SWIG_csharp_string_to_c0(int size, int len, [global::System.Runtime.InteropServices.In,global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.LPStr, SizeParamIndex=0)] string str);
+
+    [global::System.Runtime.InteropServices.DllImport("$module", EntryPoint="SWIG_csharp_string_size")]
+    private static extern int SWIG_csharp_string_size(global::System.IntPtr str);
+
+    [global::System.Runtime.InteropServices.DllImport("$module", EntryPoint="SWIG_csharp_string_str")]
+    private static extern global::System.IntPtr SWIG_csharp_string_str(global::System.IntPtr str);
+
+    public static global::System.IntPtr SWIG_csharp_string_to_c(string str) {
+      if (str == null)
+        return global::System.IntPtr.Zero;
+      global::System.Text.Encoding utf8 = global::System.Text.Encoding.UTF8;
+      return SWIG_csharp_string_to_c0(utf8.GetByteCount(str), str.Length, str);
+    }
+
+    public static string SWIG_c_to_csharp_string(global::System.IntPtr str) {
+      int size = SWIG_csharp_string_size(str);
+      if (size > 0) {
+        global::System.IntPtr s = SWIG_csharp_string_str(str);
+        byte[] b = new byte[size];
+        global::System.Runtime.InteropServices.Marshal.Copy(s, b, 0, size);
+        global::System.Text.Encoding utf8 = global::System.Text.Encoding.UTF8;
+        return utf8.GetString(b);
+      }
+      return null;
+    }
+  }
+%}
+#endif // SWIG_CSHARP_NO_STRING_WITH_LENGTH_HELPER
+
 #if !defined(SWIG_CSHARP_NO_IMCLASS_STATIC_CONSTRUCTOR)
 // Ensure the class is not marked beforefieldinit
 %pragma(csharp) imclasscode=%{
@@ -454,5 +494,5 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterStringCallback_$module(SWIG_CSharpString
 %insert(runtime) %{
 /* Contract support */
 
-#define SWIG_contract_assert(nullreturn, expr, msg) if (!(expr)) {SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentOutOfRangeException, msg, ""); return nullreturn; } else
+#define SWIG_contract_assert(nullreturn, expr, msg) do { if (!(expr)) {SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentOutOfRangeException, msg, ""); return nullreturn; } } while (0)
 %}

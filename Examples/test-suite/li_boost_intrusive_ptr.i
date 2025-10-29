@@ -5,7 +5,7 @@
 // like 'top'. There is a wrapper for intrusive_ptr in intrusive_ptr_wrapper.h which enables one to
 // count the instances of intrusive_ptr. Uncomment the INTRUSIVE_PTR_WRAPPER macro to turn this on.
 //
-// Also note the debug_shared flag  which can be set from the target language.
+// Also note the debug_shared flag which can be set from the target language.
 //
 // Usage of intrusive_ptr_add_ref and intrusive_ptr_release based on boost testing:
 // http://www.boost.org/doc/libs/1_36_0/libs/smart_ptr/test/intrusive_ptr_test.cpp
@@ -22,7 +22,7 @@
 %{
 #include <boost/shared_ptr.hpp>
 #include <boost/intrusive_ptr.hpp>
-#include <boost/detail/atomic_count.hpp>
+#include <boost/smart_ptr/detail/atomic_count.hpp>
 
 // Uncomment macro below to turn on intrusive_ptr memory leak checking as described above
 //#define INTRUSIVE_PTR_WRAPPER

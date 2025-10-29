@@ -32,7 +32,7 @@ if is_python_builtin():
   passed = False
   try:
     h = hash(ExceptionHashFunction())
-  except RuntimeError, e:
+  except RuntimeError as e:
     passed = str(e).find("oops") != -1
     pass
 
@@ -83,6 +83,7 @@ if is_python_builtin():
   if MyClass.less_than_counts != 6:
     raise RuntimeError("python:compare feature not working")
 
+# Test 6
 sa = SimpleArray(5)
 elements = [x for x in sa]
 if elements != [0, 10, 20, 30, 40]:
@@ -96,3 +97,40 @@ subslice = sa[1:3]
 elements = [x for x in subslice]
 if elements != [10, 20]:
   raise RuntimeError("slice not working")
+
+# Test 7 mapping to Python's pow
+x = ANumber(2)
+y = ANumber(4)
+z = x ** y
+if z.Value() != 16:
+  raise RuntimeError("x ** y wrong")
+z = pow(x, y)
+if z.Value() != 16:
+  raise RuntimeError("pow(x, y) wrong")
+z = ANumber(9)
+z = pow(x, y, z)
+if z.Value() != 7:
+  raise RuntimeError("pow(x, y, z) wrong")
+
+# Test 8 https://github.com/swig/swig/pull/2771 __setitem__ for deleting item, uses C NULL
+def check_gsi(gsi, idx, value, args_count, kw_count):
+  if gsi.idx != idx:
+    raise RuntimeError("idx wrong {}".format(idx))
+  if gsi.value != value:
+    raise RuntimeError("value wrong {}".format(value))
+  if gsi.args_count != args_count:
+    raise RuntimeError("args_count wrong {}".format(args_count))
+  if gsi.kw_count != kw_count:
+    raise RuntimeError("kw_count wrong {}".format(kw_count))
+  gsi.reset()
+
+if is_python_builtin():
+  gsi = GetSetItem()
+  gsi[0] = 111
+  check_gsi(gsi, 0, 111, -100, -100)
+  del gsi[0]
+  check_gsi(gsi, 0, -11, -100, -100)
+  gsi(222, fred = 333, jack = 444)
+  check_gsi(gsi, -100, -100, 1, 2)
+  gsi(333)
+  check_gsi(gsi, -100, -100, 1, -11)

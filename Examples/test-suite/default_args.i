@@ -2,6 +2,10 @@
 
 %module default_args
 
+#ifdef SWIGOCAML
+%warnfilter(SWIGWARN_PARSE_KEYWORD) val;
+#endif
+
 %{
 #if defined(_MSC_VER)
   #pragma warning(disable: 4146) // unary minus operator applied to unsigned type, result still unsigned
@@ -14,6 +18,7 @@
 %{
 #define TESTCASE_THROW1(T1)
 #define TESTCASE_THROW2(T1, T2)
+#include <string.h>
 %}
 
 %include <std_string.i>
@@ -67,7 +72,7 @@
   class EnumClass {
     public:
       enum speed { FAST, SLOW };
-      // Note: default values should be EnumClass::FAST and SWEET 
+      // Note: default values should be EnumClass::FAST and SWEET
       bool blah(speed s = FAST, flavor f = SWEET) { return (s == FAST && f == SWEET); };
   };
 
@@ -79,16 +84,16 @@
 
   // casts
   const char * casts1(const char *m = (const char *) NULL) {
-    char *ret = NULL; 
-    if (m) { 
+    char *ret = NULL;
+    if (m) {
       ret = new char[strlen(m)+1];
       strcpy(ret, m);
     }
     return ret;
   }
   const char * casts2(const char *m = (const char *) "Hello") {
-    char *ret = NULL; 
-    if (m) { 
+    char *ret = NULL;
+    if (m) {
       ret = new char[strlen(m)+1];
       strcpy(ret, m);
     }
@@ -104,16 +109,16 @@
   char chartest6(char c = '\x43') { return c; } // 'C'
 
   // namespaces
-  namespace AType { 
-    enum AType { NoType }; 
-  } 
+  namespace AType {
+    enum AType { NoType };
+  }
   void dummy(AType::AType aType = AType::NoType) {}
-  namespace A { 
-    namespace B { 
-      int CONST_NUM = 10; 
-    } 
+  namespace A {
+    namespace B {
+      int CONST_NUM = 10;
+    }
     int afunction(int i = B::CONST_NUM) { return i; }
-  } 
+  }
 
   // references
   int reftest1(const int &x = 42) { return x; }
@@ -127,7 +132,7 @@
       void test(int x = Oak + Fir + Cedar) {}
   };
   enum Tree::types chops(enum Tree::types type) { return type; }
- 
+
 %}
 
 // Rename a class member
@@ -139,7 +144,7 @@
 %rename(renamed2arg) Foo::renameme(int x) const;
 %rename(renamed1arg) Foo::renameme() const;
 
-%typemap(default) double* null_by_default "$1=0;";
+%typemap(default) double* null_by_default "$1=0;"
 
 %inline %{
   typedef void* MyHandle;
@@ -151,11 +156,11 @@
       static int spam;
 
       Foo(){}
-     
+
       Foo(int x, int y = 0, int z = 0){}
 
       void meth(int x, int y = 0, int z = 0){}
-    
+
       // Use a renamed member as a default argument.  SWIG has to resolve
       // bar to Foo::bar and not Foo::spam.  SWIG-1.3.11 got this wrong.
       // (Different default parameter wrapping in SWIG-1.3.23 ensures SWIG doesn't have to resolve these symbols).
@@ -185,20 +190,20 @@
 // tests valuewrapper
 %feature("compactdefaultargs") MyClass2::set;
 %inline %{
-  enum MyType { Val1, Val2 }; 
+  enum MyType { Val1, Val2 };
 
-  class MyClass1 
-  { 
-    public: 
+  class MyClass1
+  {
+    public:
       MyClass1(MyType myType) {}
-  }; 
+  };
 
-  class MyClass2 
-  { 
-    public : 
+  class MyClass2
+  {
+    public :
       void set(MyClass1 cl1 = Val1) {}
-      // This could have been written : set(MyClass1 cl1 = MyClass1(Val1)) 
-      // But it works in C++ since there is a "conversion" constructor in  MyClass1. 
+      // This could have been written : set(MyClass1 cl1 = MyClass1(Val1))
+      // But it works in C++ since there is a "conversion" constructor in  MyClass1.
       void set2(MyClass1 cl1 = Val1) {}
   };
 %}
@@ -224,7 +229,7 @@ struct Except {
 %}
 
 // Default parameters in static class methods
-#ifdef SWIGPYTHON
+#if defined(SWIGPYTHON) || defined(SWIGJAVASCRIPT)
 %rename(staticMethod) staticmethod;
 #endif
 
@@ -277,7 +282,7 @@ struct ConstMethods {
 };
 %}
 
-// const methods 
+// const methods
 // runtime test needed to check that the const method is called
 struct ConstMethods {
   int coo(double d = 0.0) const;
@@ -301,8 +306,8 @@ struct ConstMethods {
       return(x+p);
     }
 
-    typedef struct Pointf { 
-      double		x,y; 
+    typedef struct Pointf {
+      double		x,y;
     } Pointf;
   }
 %}
@@ -318,6 +323,10 @@ struct ConstMethods {
 
 %inline %{
   inline int slightly_off_square(int square_error, int def17) { return def17*def17 + square_error; }
+  struct Q {
+    static int slightly_off_square_static(int def17) { return def17*def17 + 2; }
+    int slightly_off_square(int def17) { return def17*def17 + 2; }
+  };
 %}
 
 // Python C default args
@@ -329,3 +338,36 @@ struct CDA {
 };
 %}
 
+// Regression test for https://sourceforge.net/p/swig/bugs/325/
+%include wchar.i
+%inline %{
+int archiving_on( char * archivpath, char * chmodstr = (char *)"ug+rw" ) {
+  return archivpath && chmodstr[0] == 'u';
+}
+
+// Wide character version
+#include <wchar.h>
+int archiving_onw( wchar_t * archivpath, wchar_t * chmodstr = (wchar_t *)L"ug+rw" ) {
+  return archivpath && chmodstr[0] == 'u';
+}
+%}
+
+%{
+struct SomeClass {
+  int d(int x) const { return x; }
+};
+static SomeClass someobject;
+%}
+%inline %{
+// Regression test - SWIG >= 4.3.0 avoids parsing parameter lists of method
+// calls and instead just skips from `(` to the matching closing `)`.  That
+// means SWIG can now handle any expression in a method call parameter list.
+int nasty_default_expression(int x = someobject.d(sizeof - sizeof 1)) { return x; }
+%}
+
+%inline %{
+// Regression test - SWIG >= 4.3.0 avoids parsing subscript expressions and instead
+// just skips from `[` to the matching closing `]`.  That
+// means SWIG can now handle any expression as the subscript.
+int subscripted_default_arg(int x = "abcdefghij"[sizeof - sizeof 1]) { return x; }
+%}

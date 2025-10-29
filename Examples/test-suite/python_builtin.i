@@ -226,3 +226,53 @@ void Dealloc2Destroyer(PyObject *v) {
   };
 %}
 
+// Test 7 mapping to Python's pow
+%pybinoperator(__pow__, ANumber::power, ternaryfunc, nb_power);
+
+%inline %{
+class ANumber {
+  int num;
+public:
+  ANumber(int d = 0) : num(d) {}
+  ANumber __pow__(const ANumber &other, const ANumber *x = 0) const {
+    int val = (int)pow(num, other.num);
+    val = x ? val % x->num : val;
+    return ANumber(val);
+  }
+  int Value() const {
+    return num;
+  }
+};
+%}
+
+// Test 8 https://github.com/swig/swig/pull/2771 __setitem__ for deleting item, uses C NULL
+%feature("python:slot", "sq_item", functype="ssizeargfunc") GetSetItem::__getitem__;
+%feature("python:slot", "sq_ass_item", functype="ssizeobjargproc") GetSetItem::__setitem__;
+%feature("python:slot", "tp_call", functype="ternaryfunc") GetSetItem::__call__;
+%typemap(default) PyObject* value {$1 = NULL;}
+
+%inline %{
+class GetSetItem {
+public:
+  int idx, value, args_count, kw_count;
+  GetSetItem() : idx(), value(), args_count(), kw_count() { reset(); }
+  int __getitem__(int idx) {
+    this->idx = idx;
+    return 123;
+  }
+  void __setitem__(int idx, PyObject* value) {
+    this->idx = idx;
+    this->value = value ? (int)PyInt_AsLong(value) : -11;
+  }
+  void __call__(PyObject* args, PyObject* kw) {
+    this->args_count = args ? (int)PyTuple_Size(args) : -11;
+    this->kw_count = kw ? (int)PyDict_Size(kw) : -11;
+  }
+  void reset() {
+    idx = -100;
+    value = -100;
+    args_count = -100;
+    kw_count = -100;
+  }
+};
+%}

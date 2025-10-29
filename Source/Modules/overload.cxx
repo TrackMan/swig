@@ -4,7 +4,7 @@
  * terms also apply to certain portions of SWIG. The full details of the SWIG
  * license and copyrights can be found in the LICENSE and COPYRIGHT files
  * included with the SWIG source code as distributed by the SWIG developers
- * and at http://www.swig.org/legal.html.
+ * and at https://www.swig.org/legal.html.
  *
  * overload.cxx
  *
@@ -21,6 +21,7 @@
 String *argv_template_string;
 String *argc_template_string;
 
+namespace {
 struct Overloaded {
   Node *n;			/* Node                               */
   int argc;			/* Argument count                     */
@@ -28,6 +29,7 @@ struct Overloaded {
   int error;			/* Ambiguity error                    */
   bool implicitconv_function;	/* For ordering implicitconv functions*/
 };
+}
 
 static int fast_dispatch_mode = 0;
 static int cast_dispatch_mode = 0;
@@ -337,7 +339,6 @@ List *Swig_overload_rank(Node *n, bool script_lang_wrapping) {
 	Setattr(nodes[i].n, "overload:ignore", "1");
       Append(result, nodes[i].n);
       // Printf(stdout,"[ %d ] %d    %s\n", i, nodes[i].implicitconv_function, ParmList_errorstr(nodes[i].parms));
-      // Swig_print_node(nodes[i].n);
       if (i == nnodes-1 || nodes[i].argc != nodes[i+1].argc) {
 	if (argc_changed_index+2 < nnodes && (nodes[argc_changed_index+1].argc == nodes[argc_changed_index+2].argc)) {
 	  // Add additional implicitconv functions in same order as already ranked.
@@ -349,7 +350,6 @@ List *Swig_overload_rank(Node *n, bool script_lang_wrapping) {
 	      SetFlag(nodes[j].n, "implicitconvtypecheckoff");
 	      Append(result, nodes[j].n);
 	      // Printf(stdout,"[ %d ] %d +  %s\n", j, nodes[j].implicitconv_function, ParmList_errorstr(nodes[j].parms));
-	      // Swig_print_node(nodes[j].n);
 	    }
 	  }
 	}
@@ -360,9 +360,9 @@ List *Swig_overload_rank(Node *n, bool script_lang_wrapping) {
   return result;
 }
 
-// /* -----------------------------------------------------------------------------
-//  * print_typecheck()
-//  * ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * print_typecheck()
+ * ----------------------------------------------------------------------------- */
 
 static bool print_typecheck(String *f, int j, Parm *pj, bool implicitconvtypecheckoff) {
   char tmp[256];
@@ -425,10 +425,11 @@ static String *ReplaceFormat(const_String_or_char_ptr fmt, int j) {
 /*
   Cast dispatch mechanism.
 */
-String *Swig_overload_dispatch_cast(Node *n, const_String_or_char_ptr fmt, int *maxargs) {
+String *Swig_overload_dispatch_cast(Node *n, const_String_or_char_ptr fmt, int *maxargs, bool *check_emitted) {
   int i, j;
 
-  *maxargs = 1;
+  *maxargs = 0;
+  *check_emitted = false;
 
   String *f = NewString("");
   String *sw = NewString("");
@@ -442,7 +443,7 @@ String *Swig_overload_dispatch_cast(Node *n, const_String_or_char_ptr fmt, int *
 
   /* Loop over the functions */
 
-  bool emitcheck = 1;
+  bool emitcheck = true;
   for (i = 0; i < nfunc; i++) {
     int fn = 0;
     Node *ni = Getitem(dispatch, i);
@@ -518,7 +519,7 @@ String *Swig_overload_dispatch_cast(Node *n, const_String_or_char_ptr fmt, int *
 		if (tml)
 		  Replaceid(tml, Getattr(pl, "lname"), "_v");
 		if (!tml || Cmp(tm, tml))
-		  emitcheck = 1;
+		  emitcheck = true;
 		//printf("tmap: %s[%d] (%d) => %s\n\n",
 		//       Char(Getattr(nk, "sym:name")),
 		//       l, emitcheck, tml?Char(tml):0);
@@ -533,6 +534,7 @@ String *Swig_overload_dispatch_cast(Node *n, const_String_or_char_ptr fmt, int *
 	  }
 
 	  if (emitcheck) {
+	    *check_emitted = true;
 	    if (need_v) {
 	      Printf(f, "int _v = 0;\n");
 	      need_v = 0;
@@ -560,10 +562,12 @@ String *Swig_overload_dispatch_cast(Node *n, const_String_or_char_ptr fmt, int *
 	  }
 	}
 	if (!Getattr(pj, "tmap:in:SWIGTYPE") && Getattr(pj, "tmap:typecheck:SWIGTYPE")) {
-	  /* we emit  a warning if the argument defines the 'in' typemap, but not the 'typecheck' one */
+	  /* we emit a warning if the argument defines the 'in' typemap, but not the 'typecheck' one */
 	  Swig_warning(WARN_TYPEMAP_TYPECHECK_UNDEF, Getfile(ni), Getline(ni),
-		       "Overloaded method %s with no explicit typecheck typemap for arg %d of type '%s'\n",
+		       "Overloaded method %s with no explicit typecheck typemap for arg %d of type '%s'.\n",
 		       Swig_name_decl(n), j, SwigType_str(Getattr(pj, "type"), 0));
+	  Swig_warning(WARN_TYPEMAP_TYPECHECK_UNDEF, Getfile(ni), Getline(ni),
+		      "Dispatching calls to this method may not work correctly, see the 'Typemaps and Overloading' section in the Typemaps chapter of the SWIG documentation.\n");
 	}
 	Parm *pj1 = Getattr(pj, "tmap:in:next");
 	if (pj1)
@@ -610,10 +614,11 @@ String *Swig_overload_dispatch_cast(Node *n, const_String_or_char_ptr fmt, int *
 /*
   Fast dispatch mechanism, provided by  Salvador Fandi~no Garc'ia (#930586).
 */
-String *Swig_overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *maxargs) {
+static String *overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *maxargs, bool *check_emitted, const_String_or_char_ptr fmt_fastdispatch) {
   int i, j;
 
-  *maxargs = 1;
+  *maxargs = 0;
+  *check_emitted = false;
 
   String *f = NewString("");
 
@@ -653,6 +658,7 @@ String *Swig_overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *
 
     // printf("overload: %s coll=%d\n", Char(Getattr(n, "sym:name")), Len(coll));
 
+    bool emitcheck = false;
     int num_braces = 0;
     bool test = (Len(coll) > 0 && num_arguments);
     if (test) {
@@ -673,7 +679,7 @@ String *Swig_overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *
 
 	  /* if all the wrappers have the same type check on this
 	     argument we can optimize it out */
-	  bool emitcheck = 0;
+	  emitcheck = false;
 	  for (int k = 0; k < Len(coll) && !emitcheck; k++) {
 	    Node *nk = Getitem(coll, k);
 	    Parm *pk = Getattr(nk, "wrap:parms");
@@ -695,7 +701,7 @@ String *Swig_overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *
 		if (tml)
 		  Replaceid(tml, Getattr(pl, "lname"), "_v");
 		if (!tml || Cmp(tm, tml))
-		  emitcheck = 1;
+		  emitcheck = true;
 		//printf("tmap: %s[%d] (%d) => %s\n\n",
 		//       Char(Getattr(nk, "sym:name")),
 		//       l, emitcheck, tml?Char(tml):0);
@@ -710,6 +716,7 @@ String *Swig_overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *
 	  }
 
 	  if (emitcheck) {
+	    *check_emitted = true;
 	    if (need_v) {
 	      Printf(f, "int _v = 0;\n");
 	      need_v = 0;
@@ -734,10 +741,12 @@ String *Swig_overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *
 	  }
 	}
 	if (!Getattr(pj, "tmap:in:SWIGTYPE") && Getattr(pj, "tmap:typecheck:SWIGTYPE")) {
-	  /* we emit  a warning if the argument defines the 'in' typemap, but not the 'typecheck' one */
+	  /* we emit a warning if the argument defines the 'in' typemap, but not the 'typecheck' one */
 	  Swig_warning(WARN_TYPEMAP_TYPECHECK_UNDEF, Getfile(ni), Getline(ni),
-		       "Overloaded method %s with no explicit typecheck typemap for arg %d of type '%s'\n",
+		       "Overloaded method %s with no explicit typecheck typemap for arg %d of type '%s'.\n",
 		       Swig_name_decl(n), j, SwigType_str(Getattr(pj, "type"), 0));
+	  Swig_warning(WARN_TYPEMAP_TYPECHECK_UNDEF, Getfile(ni), Getline(ni),
+		       "Dispatching calls to this method may not work correctly, see the 'Typemaps and Overloading' section in the Typemaps chapter of the SWIG documentation.\n");
 	}
 	Parm *pj1 = Getattr(pj, "tmap:in:next");
 	if (pj1)
@@ -752,8 +761,8 @@ String *Swig_overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *
     for ( /* empty */ ; num_braces > 0; num_braces--)
       Printf(f, "}\n");
 
-
-    String *lfmt = ReplaceFormat(fmt, num_arguments);
+    // The language module may want to generate different code for last overloaded function called (with same number of arguments)
+    String *lfmt = ReplaceFormat(!emitcheck && fmt_fastdispatch ? fmt_fastdispatch : fmt, num_arguments);
     Printf(f, Char(lfmt), Getattr(ni, "wrap:name"));
 
     Printf(f, "}\n");		/* braces closes "if" for this method */
@@ -770,15 +779,16 @@ String *Swig_overload_dispatch_fast(Node *n, const_String_or_char_ptr fmt, int *
   return f;
 }
 
-String *Swig_overload_dispatch(Node *n, const_String_or_char_ptr fmt, int *maxargs) {
+String *Swig_overload_dispatch(Node *n, const_String_or_char_ptr fmt, int *maxargs, bool *check_emitted, const_String_or_char_ptr fmt_fastdispatch) {
 
   if (fast_dispatch_mode || GetFlag(n, "feature:fastdispatch")) {
-    return Swig_overload_dispatch_fast(n, fmt, maxargs);
+    return overload_dispatch_fast(n, fmt, maxargs, check_emitted, fmt_fastdispatch);
   }
 
   int i, j;
 
-  *maxargs = 1;
+  *maxargs = 0;
+  *check_emitted = false;
 
   String *f = NewString("");
 
@@ -808,7 +818,7 @@ String *Swig_overload_dispatch(Node *n, const_String_or_char_ptr fmt, int *maxar
     }
 
     if (num_arguments) {
-      Printf(f, "int _v;\n");
+      Printf(f, "int _v = 0;\n");
     }
 
     int num_braces = 0;
@@ -819,6 +829,7 @@ String *Swig_overload_dispatch(Node *n, const_String_or_char_ptr fmt, int *maxar
 	pj = Getattr(pj, "tmap:in:next");
 	continue;
       }
+      *check_emitted = true;
       if (j >= num_required) {
 	String *lfmt = ReplaceFormat(fmt, num_arguments);
 	Printf(f, "if (%s <= %d) {\n", argc_template_string, j);
@@ -831,10 +842,12 @@ String *Swig_overload_dispatch(Node *n, const_String_or_char_ptr fmt, int *maxar
 	num_braces++;
       }
       if (!Getattr(pj, "tmap:in:SWIGTYPE") && Getattr(pj, "tmap:typecheck:SWIGTYPE")) {
-	/* we emit  a warning if the argument defines the 'in' typemap, but not the 'typecheck' one */
+	/* we emit a warning if the argument defines the 'in' typemap, but not the 'typecheck' one */
 	Swig_warning(WARN_TYPEMAP_TYPECHECK_UNDEF, Getfile(ni), Getline(ni),
-		     "Overloaded method %s with no explicit typecheck typemap for arg %d of type '%s'\n",
+		     "Overloaded method %s with no explicit typecheck typemap for arg %d of type '%s'.\n",
 		     Swig_name_decl(n), j, SwigType_str(Getattr(pj, "type"), 0));
+	Swig_warning(WARN_TYPEMAP_TYPECHECK_UNDEF, Getfile(ni), Getline(ni),
+		     "Dispatching calls to this method may not work correctly, see the 'Typemaps and Overloading' section in the Typemaps chapter of the SWIG documentation.\n");
       }
       Parm *pk = Getattr(pj, "tmap:in:next");
       if (pk)

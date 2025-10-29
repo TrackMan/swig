@@ -4,7 +4,7 @@
  * terms also apply to certain portions of SWIG. The full details of the SWIG
  * license and copyrights can be found in the LICENSE and COPYRIGHT files
  * included with the SWIG source code as distributed by the SWIG developers
- * and at http://www.swig.org/legal.html.
+ * and at https://www.swig.org/legal.html.
  *
  * lua.cxx
  *
@@ -50,7 +50,7 @@
 /**** Diagnostics:
   With the #define REPORT(), you can change the amount of diagnostics given
   This helps me search the parse tree & figure out what is going on inside SWIG
-  (because its not clear or documented)
+  (because it's not clear or documented)
 */
 #define REPORT(T,D)		// no info:
 //#define REPORT(T,D)   {Printf(stdout,T"\n");} // only title
@@ -269,9 +269,6 @@ public:
     /* Set language-specific configuration file */
     SWIG_config_file("lua.swg");
 
-    /* Set typemap language */
-    SWIG_typemap_lang("lua");
-
     /* Enable overloaded methods support */
     allow_overloading();
   }
@@ -304,7 +301,7 @@ public:
     f_begin = NewFile(outfile, "w", SWIG_output_files());
     if (!f_begin) {
       FileErrorDisplay(outfile);
-      SWIG_exit(EXIT_FAILURE);
+      Exit(EXIT_FAILURE);
     }
     f_runtime = NewString("");
     f_init = NewString("");
@@ -329,7 +326,7 @@ public:
     /* Standard stuff for the SWIG runtime section */
     Swig_banner(f_begin);
 
-    Printf(f_runtime, "\n\n#ifndef SWIGLUA\n#define SWIGLUA\n#endif\n\n");
+    Swig_obligatory_macros(f_runtime, "LUA");
 
     emitLuaFlavor(f_runtime);
 
@@ -435,7 +432,7 @@ public:
   /* NEW LANGUAGE NOTE:***********************************************
      This is it!
      you get this one right, and most of your work is done
-     but its going to take some file to get it working right
+     but it's going to take some file to get it working right
      quite a bit of this is generally boilerplate code
      (or stuff I don't understand)
      that which matters will have extra added comments
@@ -516,7 +513,7 @@ public:
     String *iname = Getattr(n, "sym:name");
     String *lua_name = Getattr(n, "lua:name");
     assert(lua_name);
-    SwigType *d = Getattr(n, "type");
+    SwigType *returntype = Getattr(n, "type");
     ParmList *l = Getattr(n, "parms");
     Parm *p;
     String *tm;
@@ -556,6 +553,12 @@ public:
        this line adds this into the wrapper code
        NEW LANGUAGE NOTE:END *********************************************** */
     Printv(f->def, "static int ", wname, "(lua_State* L) {", NIL);
+    // SWIG_fail in lua leads to a call to lua_error() which calls longjmp()
+    // which means the destructors of any live function-local C++ objects won't
+    // get run.  To avoid this happening, we wrap almost everything in the
+    // function in a block, and end that right before lua_error() at which
+    // point those destructors will get called.
+    if (CPlusPlus) Append(f->def, "\n{");
 
     /* NEW LANGUAGE NOTE:***********************************************
        this prints the list of args, eg for a C fn
@@ -613,13 +616,9 @@ public:
       }
 
       SwigType *pt = Getattr(p, "type");
-      String *ln = Getattr(p, "lname");
-
       /* Look for an input typemap */
       sprintf(source, "%d", i + 1);
       if ((tm = Getattr(p, "tmap:in"))) {
-	Replaceall(tm, "$source", source);
-	Replaceall(tm, "$target", ln);
 	Replaceall(tm, "$input", source);
 	Setattr(p, "emit:input", source);
 	if (Getattr(p, "wrap:disown") || (Getattr(p, "tmap:in:disown"))) {
@@ -678,7 +677,6 @@ public:
     /* Insert constraint checking code */
     for (p = l; p;) {
       if ((tm = Getattr(p, "tmap:check"))) {
-	Replaceall(tm, "$target", Getattr(p, "lname"));
 	Printv(f->code, tm, "\n", NIL);
 	p = Getattr(p, "tmap:check:next");
       } else {
@@ -690,7 +688,6 @@ public:
     String *cleanup = NewString("");
     for (p = l; p;) {
       if ((tm = Getattr(p, "tmap:freearg"))) {
-	Replaceall(tm, "$source", Getattr(p, "lname"));
 	Printv(cleanup, tm, "\n", NIL);
 	p = Getattr(p, "tmap:freearg:next");
       } else {
@@ -709,8 +706,6 @@ public:
 	//                      returnval+=GetInt(p,"tmap:argout:numoutputs");
 	//        }
 	//        else returnval++;
-	Replaceall(tm, "$source", Getattr(p, "lname"));
-	Replaceall(tm, "$target", Swig_cresult_name());
 	Replaceall(tm, "$arg", Getattr(p, "emit:input"));
 	Replaceall(tm, "$input", Getattr(p, "emit:input"));
 	Printv(outarg, tm, "\n", NIL);
@@ -740,7 +735,6 @@ public:
       //              returnval+=GetInt(tm,"numoutputs");
       //      }
       //        else returnval++;
-      Replaceall(tm, "$source", Swig_cresult_name());
       if (GetFlag(n, "feature:new")) {
 	Replaceall(tm, "$owner", "1");
       } else {
@@ -749,9 +743,9 @@ public:
       Printf(f->code, "%s\n", tm);
       //      returnval++;
     } else {
-      Swig_warning(WARN_TYPEMAP_OUT_UNDEF, input_file, line_number, "Unable to use return type %s in function %s.\n", SwigType_str(d, 0), name);
+      Swig_warning(WARN_TYPEMAP_OUT_UNDEF, input_file, line_number, "Unable to use return type %s in function %s.\n", SwigType_str(returntype, 0), name);
     }
-    emit_return_variable(n, d, f);
+    emit_return_variable(n, returntype, f);
 
     /* Output argument output code */
     Printv(f->code, outarg, NIL);
@@ -762,14 +756,12 @@ public:
     /* Look to see if there is any newfree cleanup code */
     if (GetFlag(n, "feature:new")) {
       if ((tm = Swig_typemap_lookup("newfree", n, Swig_cresult_name(), 0))) {
-	Replaceall(tm, "$source", Swig_cresult_name());
 	Printf(f->code, "%s\n", tm);
       }
     }
 
     /* See if there is any return cleanup code */
     if ((tm = Swig_typemap_lookup("ret", n, Swig_cresult_name(), 0))) {
-      Replaceall(tm, "$source", Swig_cresult_name());
       Printf(f->code, "%s\n", tm);
     }
 
@@ -777,14 +769,19 @@ public:
     /* Close the function */
     Printv(f->code, "return SWIG_arg;\n", NIL);
     // add the failure cleanup code:
-    Printv(f->code, "\nif(0) SWIG_fail;\n", NIL);
-    Printv(f->code, "\nfail:\n", NIL);
-    Printv(f->code, "$cleanup", "lua_error(L);\n", NIL);
-    Printv(f->code, "return SWIG_arg;\n", NIL);
+    Printv(f->code, "\nfail: SWIGUNUSED;\n", "$cleanup", NIL);
+    if (CPlusPlus) Append(f->code, "}\n");
+    Printv(f->code, "lua_error(L);\n", NIL);
+    // lua_error() calls longjmp() but we need a dummy return to avoid compiler
+    // warnings.
+    Printv(f->code, "return 0;\n", NIL);
     Printf(f->code, "}\n");
 
     /* Substitute the cleanup code */
     Replaceall(f->code, "$cleanup", cleanup);
+
+    bool isvoid = !Cmp(returntype, "void");
+    Replaceall(f->code, "$isvoid", isvoid ? "1" : "0");
 
     /* Substitute the function name */
     Replaceall(f->code, "$symname", iname);
@@ -842,8 +839,9 @@ public:
     /* Last node in overloaded chain */
 
     int maxargs;
+    bool check_emitted = false;
     String *tmp = NewString("");
-    String *dispatch = Swig_overload_dispatch(n, "return %s(L);", &maxargs);
+    String *dispatch = Swig_overload_dispatch(n, "return %s(L);", &maxargs, &check_emitted);
 
     /* Generate a dispatch wrapper for all overloaded functions */
 
@@ -864,12 +862,14 @@ public:
 
     Printv(f->def, "static int ", wname, "(lua_State* L) {", NIL);
     Wrapper_add_local(f, "argc", "int argc");
-    Printf(tmp, "int argv[%d]={1", maxargs + 1);
-    for (int i = 1; i <= maxargs; i++) {
-      Printf(tmp, ",%d", i + 1);
+    if (maxargs > 0 && check_emitted) {
+      Printf(tmp, "int argv[%d]={1", maxargs + 1);
+      for (int i = 1; i <= maxargs; i++) {
+	Printf(tmp, ",%d", i + 1);
+      }
+      Printf(tmp, "}");
+      Wrapper_add_local(f, "argv", tmp);
     }
-    Printf(tmp, "}");
-    Wrapper_add_local(f, "argv", tmp);
     Printf(f->code, "argc = lua_gettop(L);\n");
 
     Replaceall(dispatch, "$args", "self,args");
@@ -917,7 +917,7 @@ public:
    * ------------------------------------------------------------ */
 
   void registerVariable(Node *n, bool overwrite = false, String *overwriteLuaScope = 0) {
-    int assignable = is_assignable(n);
+    int assignable = !is_immutable(n);
     String *symname = Getattr(n, "sym:name");
     assert(symname);
 
@@ -1002,6 +1002,7 @@ public:
     //    REPORT("variableWrapper", n);
     String *lua_name = Getattr(n, "lua:name");
     assert(lua_name);
+    (void)lua_name;
     current[VARIABLE] = true;
     // let SWIG generate the wrappers
     int result = Language::variableWrapper(n);
@@ -1052,8 +1053,7 @@ public:
       lua_name = iname;
     String *nsname = Copy(iname);
     SwigType *type = Getattr(n, "type");
-    String *rawval = Getattr(n, "rawval");
-    String *value = rawval ? rawval : Getattr(n, "value");
+    String *value = Getattr(n, "value");
     String *tm;
     String *lua_name_v2 = 0;
     String *tm_v2 = 0;
@@ -1073,14 +1073,10 @@ public:
     }
 
     if ((tm = Swig_typemap_lookup("consttab", n, name, 0))) {
-      Replaceall(tm, "$source", value);
-      Replaceall(tm, "$target", lua_name);
       Replaceall(tm, "$value", value);
       Replaceall(tm, "$nsname", nsname);
       registerConstant(luaCurrentSymbolNSpace(), tm);
     } else if ((tm = Swig_typemap_lookup("constcode", n, name, 0))) {
-      Replaceall(tm, "$source", value);
-      Replaceall(tm, "$target", lua_name);
       Replaceall(tm, "$value", value);
       Replaceall(tm, "$nsname", nsname);
       Printf(f_init, "%s\n", tm);
@@ -1109,8 +1105,6 @@ public:
         Setattr(n_v2, "sym:name", lua_name_v2);
         tm_v2 = Swig_typemap_lookup("consttab", n_v2, name, 0);
         if (tm_v2) {
-          Replaceall(tm_v2, "$source", value);
-          Replaceall(tm_v2, "$target", lua_name_v2);
           Replaceall(tm_v2, "$value", value);
           Replaceall(tm_v2, "$nsname", nsname);
           registerConstant(getNSpace(), tm_v2);
@@ -1122,8 +1116,6 @@ public:
             Swig_restore(n);
             return SWIG_ERROR;
           }
-          Replaceall(tm_v2, "$source", value);
-          Replaceall(tm_v2, "$target", lua_name_v2);
           Replaceall(tm_v2, "$value", value);
           Replaceall(tm_v2, "$nsname", nsname);
           Printf(f_init, "%s\n", tm_v2);
@@ -1279,12 +1271,12 @@ public:
       full_proxy_class_name = NewStringf("%s.%s", nspace, proxy_class_name);
 
     assert(full_proxy_class_name);
-    mangled_full_proxy_class_name = Swig_name_mangle(full_proxy_class_name);
+    mangled_full_proxy_class_name = Swig_name_mangle_string(full_proxy_class_name);
 
     SwigType *t = Copy(Getattr(n, "name"));
     SwigType *fr_t = SwigType_typedef_resolve_all(t);	/* Create fully resolved type */
     SwigType *t_tmp = 0;
-    t_tmp = SwigType_typedef_qualified(fr_t);	// Temporal variable
+    t_tmp = SwigType_typedef_qualified(fr_t);	// Temporary variable
     Delete(fr_t);
     fr_t = SwigType_strip_qualifiers(t_tmp);
     String *mangled_fr_t = 0;
@@ -1436,7 +1428,6 @@ public:
     List *baselist = Getattr(n, "bases");
     if (baselist && Len(baselist)) {
       Iterator b;
-      int index = 0;
       b = First(baselist);
       while (b.item) {
 	String *bname = Getattr(b.item, "name");
@@ -1449,7 +1440,6 @@ public:
 	Printf(base_class_names, "\"%s *\",", SwigType_namestr(bname));
 
 	b = Next(b);
-	index++;
       }
     }
     // First, print class static part
@@ -1815,7 +1805,7 @@ public:
     if (nspace == 0 || Len(nspace) == 0)
       mangled_name = NewString("SwigModule");
     else
-      mangled_name = Swig_name_mangle(nspace);
+      mangled_name = Swig_name_mangle_string(nspace);
     String *cname = NewStringf("swig_%s", mangled_name);
 
     Setattr(carrays_hash, "cname", cname);
@@ -2071,8 +2061,8 @@ public:
 	if (GetFlag(carrays_hash, "lua:class_instance")) {
 	  String *static_cls = Getattr(carrays_hash, "lua:class_instance:static_hash");
 	  assert(static_cls);
-	  // static_cls is swig_lua_namespace. This structure can't be use with eLua(LTR)
-	  // Instead structure describing its methods isused
+	  // static_cls is swig_lua_namespace. This structure can't be used with eLua(LTR)
+	  // Instead a structure describing its methods is used
 	  String *static_cls_cname = Getattr(static_cls, "methods:name");
 	  assert(static_cls_cname);
 	  Printv(metatable_tab, tab4, "{LSTRKEY(\".static\"), LROVAL(", static_cls_cname, ")},\n", NIL);
@@ -2134,7 +2124,7 @@ public:
       closeCArraysHash(key, dataOutput);
       Hash *carrays_hash = rawGetCArraysHash(key);
       String *name = 0;		// name - name of the namespace as it should be visible in Lua
-      if (DohLen(key) == 0)	// This is global module
+      if (Len(key) == 0)	// This is global module
 	name = module;
       else
 	name = Getattr(carrays_hash, "name");
@@ -2242,36 +2232,6 @@ public:
   }
 
 };
-
-/* NEW LANGUAGE NOTE:***********************************************
- in order to add you language into swig, you need to make the following changes:
- - write this file (obviously)
- - add into the makefile (not 100% clear on how to do this)
- - edit swigmain.cxx to add your module
- 
-near the top of swigmain.cxx, look for this code & add you own codes
-======= begin change ==========
-extern "C" {
-  Language *swig_tcl(void);
-  Language *swig_python(void);
-  //etc,etc,etc...
-  Language *swig_lua(void);	// this is my code
-}
- 
-  //etc,etc,etc...
- 
-swig_module  modules[] = {
-  {"-guile",     swig_guile,     "Guile"},
-  {"-java",      swig_java,      "Java"},
-  //etc,etc,etc...
-  {"-lua",       swig_lua,       "Lua"},	// this is my code
-  {NULL, NULL, NULL}	// this must come at the end of the list
-};
-======= end change ==========
- 
-This is all that is needed
- 
-NEW LANGUAGE NOTE:END ************************************************/
 
 /* -----------------------------------------------------------------------------
  * swig_lua()    - Instantiate module

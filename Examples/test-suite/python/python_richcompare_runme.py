@@ -6,9 +6,6 @@ def check_unorderable_types(exception):
 #        raise RuntimeError("A TypeError 'unorderable types' exception was expected"), None, sys.exc_info()[2]
     pass # Exception message seems to vary from one version of Python to another
 
-def is_new_style_class(cls):
-    return hasattr(cls, "__class__")
-
 base1 = python_richcompare.BaseClass(1)
 base2 = python_richcompare.BaseClass(2)
 base3 = python_richcompare.BaseClass(3)
@@ -86,6 +83,10 @@ if (a1 == 42) :
 if not (a1 != 42) :
     raise RuntimeError("Comparing class (with overloaded operator ==) to incompatible type, != returned False")
 
+if sys.version_info[0] >= 3:
+    if a1.__eq__(None) is not NotImplemented:
+        raise RuntimeError("Comparing to incompatible type should return NotImplemented")
+
 # Check inequalities
 #-------------------------------------------------------------------------
 
@@ -103,39 +104,37 @@ if not (a2 <= b2):
 
 # Check inequalities to other objects
 #-------------------------------------------------------------------------------
-if is_new_style_class(python_richcompare.BaseClass):
-    # Skip testing -classic option
-    if sys.version_info[0:2] < (3, 0):
-        if (base1 < 42):
-            raise RuntimeError("Comparing class to incompatible type, < returned True")
-        if (base1 <= 42):
-            raise RuntimeError("Comparing class to incompatible type, <= returned True")
-        if not (base1 > 42):
-            raise RuntimeError("Comparing class to incompatible type, > returned False")
-        if not (base1 >= 42):
-            raise RuntimeError("Comparing class to incompatible type, >= returned False")
-    else:
-        # Python 3 throws: TypeError: unorderable types
-        try:
-            res = base1 < 42
-            raise RuntimeError("Failed to throw")
-        except TypeError,e:
-            check_unorderable_types(e)
-        try:
-            res = base1 <= 42
-            raise RuntimeError("Failed to throw")
-        except TypeError,e:
-            check_unorderable_types(e)
-        try:
-            res = base1 > 42
-            raise RuntimeError("Failed to throw")
-        except TypeError,e:
-            check_unorderable_types(e)
-        try:
-            res = base1 >= 42
-            raise RuntimeError("Failed to throw")
-        except TypeError,e:
-            check_unorderable_types(e)
+if sys.version_info[0:2] < (3, 0):
+    if (base1 < 42):
+        raise RuntimeError("Comparing class to incompatible type, < returned True")
+    if (base1 <= 42):
+        raise RuntimeError("Comparing class to incompatible type, <= returned True")
+    if not (base1 > 42):
+        raise RuntimeError("Comparing class to incompatible type, > returned False")
+    if not (base1 >= 42):
+        raise RuntimeError("Comparing class to incompatible type, >= returned False")
+else:
+    # Python 3 throws: TypeError: unorderable types
+    try:
+        res = base1 < 42
+        raise RuntimeError("Failed to throw")
+    except TypeError as e:
+        check_unorderable_types(e)
+    try:
+        res = base1 <= 42
+        raise RuntimeError("Failed to throw")
+    except TypeError as e:
+        check_unorderable_types(e)
+    try:
+        res = base1 > 42
+        raise RuntimeError("Failed to throw")
+    except TypeError as e:
+        check_unorderable_types(e)
+    try:
+        res = base1 >= 42
+        raise RuntimeError("Failed to throw")
+    except TypeError as e:
+        check_unorderable_types(e)
 
 # Check inequalities used for ordering
 #-------------------------------------------------------------------------
@@ -161,3 +160,83 @@ if not (x[1] is base2):
 
 if not (x[2] is a3):
     raise RuntimeError("Ordering failed")
+
+
+# Test custom exceptions can still be thrown in operators which use %pythonmaybecall
+et0 = python_richcompare.ExceptionThrower(0)
+et1 = python_richcompare.ExceptionThrower(1)
+et2 = python_richcompare.ExceptionThrower(2)
+
+if not(et1 < et2):
+    raise RuntimeError("ExceptionThrower (a) failed")
+
+if et2 < et1:
+    raise RuntimeError("ExceptionThrower (b) failed")
+
+try:
+    x = et2 < et0
+    raise RuntimeError("ExceptionThrower failed to throw ValueError (A)")
+except ValueError:
+    pass
+
+try:
+    x = et0 < et2
+    raise RuntimeError("ExceptionThrower failed to throw ValueError (B)")
+except ValueError:
+    pass
+
+if sys.version_info[0:2] >= (3, 0):
+    try:
+        x = et2 < 99
+        raise RuntimeError("ExceptionThrower (d) failed")
+    except TypeError:
+        pass
+
+    try:
+        x = 99 < et2
+        raise RuntimeError("ExceptionThrower (e) failed")
+    except TypeError:
+        pass
+
+    try:
+        x = et0 < 99
+        raise RuntimeError("ExceptionThrower (f) failed")
+    except TypeError:
+        pass
+
+    try:
+        x = 99 < et0
+        raise RuntimeError("ExceptionThrower (g) failed")
+    except TypeError:
+        pass
+
+
+# Overloaded operators and custom exceptions
+c0 = python_richcompare.SubClassCThrower(0)
+c1 = python_richcompare.SubClassCThrower(1)
+c1b = python_richcompare.SubClassCThrower(1)
+c2 = python_richcompare.SubClassCThrower(2)
+
+if c1 == c2:
+    raise RuntimeError("SubClassCThrower failed (a)")
+
+if not(c1 == c1b):
+    raise RuntimeError("SubClassCThrower failed (b)")
+
+if c0 == 99:
+    raise RuntimeError("SubClassCThrower failed (c)")
+
+if 99 == c0:
+    raise RuntimeError("SubClassCThrower failed (d)")
+
+try:
+    x = c0 == c1
+    raise RuntimeError("SubClassCThrower failed to throw (A)")
+except ValueError:
+    pass
+
+try:
+    x = c1 == c0
+    raise RuntimeError("SubClassCThrower failed to throw (B)")
+except ValueError:
+    pass

@@ -43,19 +43,28 @@ but
 Similarly for getting the string
   $1 = (char*)lua_tostring(L, $input);
 becomes
-  $1.assign(lua_tostring(L,$input),lua_rawlen(L,$input));
-  
-Not using: lua_tolstring() as this is only found in Lua 5.1 & not 5.0.2
+  size_t len;
+  const char *ptr = lua_tolstring(L, $input, &len);
+  $1.assign(ptr, len);
 */
 
 %typemap(in,checkfn="lua_isstring") string
-%{$1.assign(lua_tostring(L,$input),lua_rawlen(L,$input));%}
+{
+  size_t len;
+  const char *ptr = lua_tolstring(L, $input, &len);
+  $1.assign(ptr, len);
+}
 
 %typemap(out) string
 %{ lua_pushlstring(L,$1.data(),$1.size()); SWIG_arg++;%}
 
 %typemap(in,checkfn="lua_isstring") const string& ($*1_ltype temp)
-%{temp.assign(lua_tostring(L,$input),lua_rawlen(L,$input)); $1=&temp;%}
+{
+  size_t len;
+  const char *ptr = lua_tolstring(L, $input, &len);
+  temp.assign(ptr, len);
+  $1=&temp;
+}
 
 %typemap(out) const string&
 %{ lua_pushlstring(L,$1->data(),$1->size()); SWIG_arg++;%}
@@ -109,7 +118,6 @@ as this is overloaded by the const char* version
     public:
       string();
       string(const char*);
-      //string(const string&);
       unsigned int size() const;
       unsigned int length() const;
       bool empty() const;
@@ -119,7 +127,6 @@ as this is overloaded by the const char* version
       // assign does not return a copy of this object
       // (no point in a scripting language)
       void assign(const char*);
-      //void assign(const string&);
       // no support for all the other features
       // it's probably better to do it in lua
   };

@@ -149,6 +149,20 @@ typedef struct swig_elua_entry {
 # define lua_rawlen lua_objlen
 #endif
 
+/* lua_tolstring() was added in Lua 5.1.  It should be a little more
+   efficient than making two separate calls and it avoids problems with order
+   of evaluation so SWIG calls lua_tolstring() when it wants the length and
+   we provide a compatibility implementation for Lua 5.0.  */
+#if !defined(LUA_VERSION_NUM) || LUA_VERSION_NUM < 501
+static const char *(lua_tolstring)(lua_State *L, int idx, size_t *len) {
+  /* Call lua_tostring() first as it may convert the value from number to
+     string. */
+  const char *result = lua_tostring(L, idx);
+  if (len) *len = lua_strlen(L, idx);
+  return result;
+}
+#endif
+
 
 /* lua_pushglobaltable is the recommended "future-proof" way to get
    the global table for Lua 5.2 and later.  Here we define
@@ -289,7 +303,7 @@ to tell the two structures apart within SWIG, other than by looking at the type
 typedef struct {
   swig_type_info   *type;
   int     own;  /* 1 if owned & must be destroyed */
-  char data[1];       /* arbitrary amount of data */    
+  char data[1];       /* arbitrary amount of data */
 } swig_lua_rawdata;
 
 /* Common SWIG API */
@@ -307,7 +321,7 @@ typedef struct {
 
 /* Contract support */
 #define SWIG_contract_assert(expr, msg)  \
-  if (!(expr)) { SWIG_Lua_pusherrstring(L, (char *) msg); goto fail; } else
+  do { if (!(expr)) { SWIG_Lua_pusherrstring(L, (char *) msg); goto fail; } } while (0)
 
 
 /* helper #defines */
@@ -341,7 +355,7 @@ typedef struct {
 #define SWIG_isptrtype(L,I) (lua_isuserdata(L,I) || lua_isnil(L,I))
 
 #ifdef __cplusplus
-/* Special helper for member function pointers 
+/* Special helper for member function pointers
 it gets the address, casts it, then dereferences it */
 /*#define SWIG_mem_fn_as_voidptr(a)  (*((char**)&(a))) */
 #endif
@@ -444,7 +458,7 @@ SWIGINTERN void SWIG_Lua_elua_emulate_register(lua_State *L, const swig_elua_ent
           lua_pop(L,1); /*remove nil */
           lua_newtable(L);
           SWIG_Lua_elua_emulate_register(L,entry->value.value.table);
-        } 
+        }
         if(is_metatable) {
           assert(lua_istable(L,-1));
           lua_pushvalue(L,-1);
@@ -453,11 +467,11 @@ SWIGINTERN void SWIG_Lua_elua_emulate_register(lua_State *L, const swig_elua_ent
 
         break;
       case LUA_TUSERDATA:
-        if(entry->value.value.userdata.member) 
+        if(entry->value.value.userdata.member)
           SWIG_NewMemberObj(L,entry->value.value.userdata.pvalue,
               entry->value.value.userdata.lvalue,
               *(entry->value.value.userdata.ptype));
-        else 
+        else
           SWIG_NewPointerObj(L,entry->value.value.userdata.pvalue,
               *(entry->value.value.userdata.ptype),0);
         break;
@@ -502,7 +516,7 @@ SWIGINTERN int SWIG_Lua_emulate_elua_getmetatable(lua_State *L)
   }
   assert(lua_gettop(L) == 2);
   return 1;
-  
+
 fail:
   lua_error(L);
   return 0;
@@ -520,7 +534,7 @@ SWIGINTERN void SWIG_Lua_emulate_elua_swap_getmetatable(lua_State *L)
   lua_pushcfunction(L, SWIG_Lua_emulate_elua_getmetatable);
   lua_rawset(L,-3);
   lua_pop(L,2);
-      
+
 }
 /* END OF REMOVE */
 
@@ -819,6 +833,7 @@ SWIGINTERN int  SWIG_Lua_class_do_get_item(lua_State *L, swig_type_info *type, i
   int bases_search_result;
   int substack_start = lua_gettop(L)-2;
   assert(first_arg == substack_start+1);
+  (void)first_arg;
   lua_checkstack(L,5);
   assert(lua_isuserdata(L,-2));  /* just in case */
   lua_getmetatable(L,-2);    /* get the meta table */
@@ -826,7 +841,7 @@ SWIGINTERN int  SWIG_Lua_class_do_get_item(lua_State *L, swig_type_info *type, i
   /* NEW: looks for the __getitem() fn
   this is a user provided get fn */
   SWIG_Lua_get_table(L,"__getitem"); /* find the __getitem fn */
-  if (lua_iscfunction(L,-1))  /* if its there */
+  if (lua_iscfunction(L,-1))  /* if it's there */
   {  /* found it so call the fn & return its value */
     lua_pushvalue(L,substack_start+1);  /* the userdata */
     lua_pushvalue(L,substack_start+2);  /* the parameter */
@@ -857,6 +872,7 @@ SWIGINTERN int  SWIG_Lua_class_do_get(lua_State *L, swig_type_info *type, int SW
   int bases_search_result;
   int substack_start = lua_gettop(L)-2;
   assert(first_arg == substack_start+1);
+  (void)first_arg;
   lua_checkstack(L,5);
   assert(lua_isuserdata(L,-2));  /* just in case */
   lua_getmetatable(L,-2);    /* get the meta table */
@@ -883,7 +899,7 @@ SWIGINTERN int  SWIG_Lua_class_do_get(lua_State *L, swig_type_info *type, int SW
   lua_pushvalue(L,substack_start+2);  /* key */
   lua_rawget(L,-2);  /* look for the fn */
   lua_remove(L,-2); /* stack tidy, remove .fn table */
-  if (lua_isfunction(L,-1)) /* note: if its a C function or lua function */
+  if (lua_isfunction(L,-1)) /* note: if it's a C function or lua function */
   {  /* found it so return the fn & let lua call it */
     lua_remove(L,-2); /* stack tidy, remove metatable */
     if(ret)
@@ -966,7 +982,7 @@ SWIGINTERN int  SWIG_Lua_class_do_set(lua_State *L, swig_type_info *type, int fi
   /* NEW: looks for the __setitem() fn
   this is a user provided set fn */
   SWIG_Lua_get_table(L,"__setitem"); /* find the fn */
-  if (lua_iscfunction(L,-1))  /* if its there */
+  if (lua_iscfunction(L,-1))  /* if it's there */
   {  /* found it so call the fn & return its value */
     lua_pushvalue(L,substack_start+1);  /* the userdata */
     lua_pushvalue(L,substack_start+2);  /* the parameter */
@@ -1039,17 +1055,11 @@ SWIGINTERN int  SWIG_Lua_class_tostring(lua_State *L)
 {
 /*  there should be 1 param passed in
   (1) userdata (not the metatable) */
-  const char *className;
-  void* userData;
+  swig_lua_userdata* userData;
   assert(lua_isuserdata(L,1));  /* just in case */
-  userData = lua_touserdata(L,1); /* get the userdata address for later */
-  lua_getmetatable(L,1);    /* get the meta table */
-  assert(lua_istable(L,-1));  /* just in case */
+  userData = (swig_lua_userdata*)lua_touserdata(L,1); /* get the userdata address */
 
-  lua_getfield(L, -1, ".type");
-  className = lua_tostring(L, -1);
-
-  lua_pushfstring(L, "<%s userdata: %p>", className, userData);
+  lua_pushfstring(L, "<userdata of type '%s' at %p>", userData->type->str, userData->ptr);
   return 1;
 }
 
@@ -1061,7 +1071,7 @@ SWIGINTERN int  SWIG_Lua_class_disown(lua_State *L)
   swig_lua_userdata *usr;
   assert(lua_isuserdata(L,-1));  /* just in case */
   usr=(swig_lua_userdata*)lua_touserdata(L,-1);  /* get it */
-  
+
   usr->own = 0; /* clear our ownership */
   return 0;
 }
@@ -1170,7 +1180,7 @@ SWIGINTERN void  SWIG_Lua_get_class_metatable(lua_State *L,const char *cname)
 Each class structure has a list of pointers to the base class structures.
 This function fills them.
 It cannot be done at compile time, as this will not work with hireachies
-spread over more than one swig file. 
+spread over more than one swig file.
 Therefore it must be done at runtime, querying the SWIG type system.
 */
 SWIGINTERN void SWIG_Lua_init_base_class(lua_State *L,swig_lua_class *clss)
@@ -1349,15 +1359,15 @@ SWIGINTERN void  SWIG_Lua_add_class_instance_details(lua_State *L, swig_lua_clas
 SWIGRUNTIME int SWIG_Lua_resolve_metamethod(lua_State *L); /*forward declaration*/
 
 /* The real function that resolves a metamethod.
- * Function searches given class and all it's bases(recursively) for first instance of something that is
- * not equal to SWIG_Lua_resolve_metatmethod. (Almost always this 'something' is actual metamethod implementation
+ * Function searches given class and all its bases (recursively) for first instance of something that is
+ * not equal to SWIG_Lua_resolve_metamethod. (Almost always this 'something' is actual metamethod implementation
  * and it is a SWIG-generated C function.). It returns value on the top of the L and there is no garbage below the
  * answer.
  * Returns 1 if found, 0 otherwise.
  * clss is class which metatable we will search for method
  * metamethod_name_idx is index in L where metamethod name (as string) lies
- * skip_check allows to skip searching metamethod in givel clss and immideatelly go to searching in bases. skip_check
- * is not caried to subsequent recursive calls - false is always passed. It is set to true only at first call from
+ * skip_check allows skipping searching metamethod in the given class and immediately going to searching in bases. skip_check
+ * is not carried to subsequent recursive calls - false is always passed. It is set to true only at first call from
  * SWIG_Lua_resolve_metamethod
  * */
 SWIGINTERN int SWIG_Lua_do_resolve_metamethod(lua_State *L, const swig_lua_class *clss, int metamethod_name_idx,
@@ -1404,11 +1414,11 @@ SWIGRUNTIME int SWIG_Lua_resolve_metamethod(lua_State *L)
 
   lua_checkstack(L,5);
   numargs = lua_gettop(L); /* number of arguments to pass to actual metamethod */
-  
+
   /* Get upvalues from closure */
   lua_pushvalue(L, lua_upvalueindex(1)); /*Get function name*/
   metamethod_name_idx = lua_gettop(L);
-  
+
   lua_pushvalue(L, lua_upvalueindex(2));
   clss = (const swig_lua_class*)(lua_touserdata(L,-1));
   lua_pop(L,1); /* remove lightuserdata with clss from stack */
@@ -1440,7 +1450,7 @@ SWIGINTERN int SWIG_Lua_add_class_user_metamethod(lua_State *L, swig_lua_class *
 
   /* metamethod name - on the top of the stack */
   assert(lua_isstring(L,-1));
-  
+
   key_index = lua_gettop(L);
 
   /* Check whether method is already defined in metatable */
@@ -1450,7 +1460,7 @@ SWIGINTERN int SWIG_Lua_add_class_user_metamethod(lua_State *L, swig_lua_class *
     lua_pop(L,1);
     return -1;
   }
-  lua_pop(L,1); 
+  lua_pop(L,1);
 
   /* Iterating over immediate bases */
   for(i=0;clss->bases[i];i++)
@@ -1460,13 +1470,13 @@ SWIGINTERN int SWIG_Lua_add_class_user_metamethod(lua_State *L, swig_lua_class *
     lua_pushvalue(L, key_index);
     lua_rawget(L, -2);
     if( !lua_isnil(L,-1) ) {
-      lua_pushvalue(L, key_index); 
+      lua_pushvalue(L, key_index);
 
       /* Add proxy function */
       lua_pushvalue(L, key_index); /* first closure value is function name */
       lua_pushlightuserdata(L, clss); /* second closure value is swig_lua_class structure */
       lua_pushcclosure(L, SWIG_Lua_resolve_metamethod, 2);
-      
+
       lua_rawset(L, metatable_index);
       success = 1;
     }
@@ -1477,7 +1487,7 @@ SWIGINTERN int SWIG_Lua_add_class_user_metamethod(lua_State *L, swig_lua_class *
       break;
   }
 
-  return success; 
+  return success;
 }
 
 SWIGINTERN void SWIG_Lua_add_class_user_metamethods(lua_State *L, swig_lua_class *clss)
@@ -1503,7 +1513,7 @@ SWIGINTERN void SWIG_Lua_add_class_user_metamethods(lua_State *L, swig_lua_class
     }
   }
 
-  lua_pop(L,1); /* remove inheritable metatmethods table */
+  lua_pop(L,1); /* remove inheritable metamethods table */
 
   /* Special handling for __tostring method */
   lua_pushstring(L, "__tostring");
@@ -1763,36 +1773,58 @@ SWIGRUNTIME void SWIG_Lua_NewPointerObj(lua_State *L,void *ptr,swig_type_info *t
  (if possible) */
 SWIGRUNTIME int  SWIG_Lua_ConvertPtr(lua_State *L,int index,void **ptr,swig_type_info *type,int flags)
 {
+  int ret = SWIG_ERROR;
   swig_lua_userdata *usr;
   swig_cast_info *cast;
-  if (lua_isnil(L,index)){*ptr=0; return SWIG_OK;}    /* special case: lua nil => NULL pointer */
+  /* special case: lua nil => NULL pointer */
+  if (lua_isnil(L,index))
+  {
+    *ptr=0;
+    return (flags & SWIG_POINTER_NO_NULL) ? SWIG_NullReferenceError : SWIG_OK;
+  }
+  if (lua_islightuserdata(L,index))
+  {
+    *ptr=lua_touserdata(L,index);
+    return (flags & SWIG_POINTER_NO_NULL) ? SWIG_NullReferenceError : SWIG_OK;
+  }
   usr=(swig_lua_userdata*)lua_touserdata(L,index);  /* get data */
   if (usr)
   {
+    if (((flags & SWIG_POINTER_RELEASE) == SWIG_POINTER_RELEASE) && !usr->own)
+    {
+      return SWIG_ERROR_RELEASE_NOT_OWNED;
+    }
     if (flags & SWIG_POINTER_DISOWN) /* must disown the object */
     {
-        usr->own=0;
+      usr->own = 0;
     }
     if (!type)            /* special cast void*, no casting fn */
     {
       *ptr=usr->ptr;
-      return SWIG_OK; /* ok */
+      ret = SWIG_OK;
     }
-    cast=SWIG_TypeCheckStruct(usr->type,type); /* performs normal type checking */
-    if (cast)
+    else
     {
-      int newmemory = 0;
-      *ptr=SWIG_TypeCast(cast,usr->ptr,&newmemory);
-      assert(!newmemory); /* newmemory handling not yet implemented */
-      return SWIG_OK;  /* ok */
+      cast=SWIG_TypeCheck(usr->type->name,type); /* performs normal type checking */
+      if (cast)
+      {
+        int newmemory = 0;
+        *ptr=SWIG_TypeCast(cast,usr->ptr,&newmemory);
+        assert(!newmemory); /* newmemory handling not yet implemented */
+        ret = SWIG_OK;
+      }
+    }
+    if ((ret == SWIG_OK) && (flags & SWIG_POINTER_CLEAR))
+    {
+      usr->ptr = 0;
     }
   }
-  return SWIG_ERROR;  /* error */
+  return ret;
 }
 
 SWIGRUNTIME void* SWIG_Lua_MustGetPtr(lua_State *L,int index,swig_type_info *type,int flags,
        int argnum,const char *func_name){
-  void *result;
+  void *result = 0;
   if (!SWIG_IsOK(SWIG_ConvertPtr(L,index,&result,type,flags))){
     luaL_error (L,"Error in %s, expected a %s at argument number %d\n",
 		func_name,(type && type->str)?type->str:"void*",argnum);
@@ -1811,7 +1843,7 @@ SWIGRUNTIME void SWIG_Lua_NewPackedObj(lua_State *L,void *ptr,size_t size,swig_t
   memcpy(raw->data,ptr,size); /* copy the data */
   SWIG_Lua_AddMetatable(L,type); /* add metatable */
 }
-    
+
 /* converts a packed userdata. user for member fn pointers only */
 SWIGRUNTIME int  SWIG_Lua_ConvertPacked(lua_State *L,int index,void *ptr,size_t size,swig_type_info *type)
 {
@@ -1910,7 +1942,7 @@ Unfortunately lua keeps changing its APIs, so we need a conditional compile
 In lua 5.0.X it's lua_dostring()
 In lua 5.1.X it's luaL_dostring()
 */
-SWIGINTERN int 
+SWIGINTERN int
 SWIG_Lua_dostring(lua_State *L, const char *str) {
   int ok,top;
   if (str==0 || str[0]==0) return 0; /* nothing to do */
@@ -1925,7 +1957,7 @@ SWIG_Lua_dostring(lua_State *L, const char *str) {
   }
   lua_settop(L,top); /* restore the stack */
   return ok;
-}    
+}
 
 #ifdef __cplusplus
 }

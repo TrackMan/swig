@@ -17,6 +17,7 @@ int call2(int * (*d)(const int &, int), int a, int b) { return *d(a, b); }
 int call3(int & (*d)(const int &, int), int a, int b) { return d(a, b); }
 int call4(int & (*d)(int &, int *), int a, int b) { return d(a, &b); }
 int call5(int & (*d)(int &, int const * const), int a, int b) { return d(a, &b); }
+int callconst1(int (* const d)(const int &, int), int a, int b) { return d(a, b); }
 %}
 
 %constant int (*ADD_BY_VALUE)(const int &, int) = addByValue;
@@ -32,4 +33,3 @@ void *typedef_call1(AddByValueTypedef *& precallback, AddByValueTypedef * postca
 void *typedef_call2(AddByPointerTypedef *& precallback, AddByPointerTypedef * postcallback) { return 0; }
 void *typedef_call3(AddByReferenceTypedef *& precallback, AddByReferenceTypedef * postcallback) { return 0; }
 %}
-

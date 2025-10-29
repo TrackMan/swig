@@ -7,11 +7,9 @@
 SWIGINTERN swig_type_info*
 SWIG_pchar_descriptor(void)
 {
-  static int init = 0;
   static swig_type_info* info = 0;
-  if (!init) {
+  if (!info) {
     info = SWIG_TypeQuery("_p_char");
-    init = 1;
   }
   return info;
 }
@@ -30,6 +28,7 @@ SWIG_strnlen(const char* s, size_t maxlen)
 
 %include <typemaps/strings.swg>
 %typemaps_string(%checkcode(STRING), %checkcode(CHAR),
+		 SWIGWARN_TYPEMAP_CHARLEAK_MSG,
 		 char, Char, SWIG_AsCharPtrAndSize, SWIG_FromCharPtrAndSize,
 		 strlen, SWIG_strnlen,
 		"<limits.h>", CHAR_MIN, CHAR_MAX)

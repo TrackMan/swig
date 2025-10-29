@@ -1,6 +1,6 @@
 %module nested_structs
 
-#if defined(SWIG_JAVASCRIPT_V8)
+#if defined(SWIG_JAVASCRIPT_V8) || defined(SWIG_JAVASCRIPT_NAPI)
 
 %inline %{
 #if __GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8)
@@ -10,6 +10,10 @@
 #endif
 %}
 
+#endif
+
+#ifdef SWIGOCAML
+%warnfilter(SWIGWARN_PARSE_KEYWORD) val;
 #endif
 
 // bug #491476

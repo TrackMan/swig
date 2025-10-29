@@ -2,7 +2,7 @@
   Maps
 */
 
-%fragment("StdMapCommonTraits","header",fragment="StdSequenceTraits")
+%fragment("StdMapCommonTraits","header",fragment="StdSequenceTraits",fragment="SwigPyIterator_T")
 {
   namespace swig {
     template <class ValueType>
@@ -56,9 +56,9 @@
 
     template<class OutIterator,
 	     class FromOper = from_value_oper<typename OutIterator::value_type> >
-    struct SwigPyMapValueITerator_T : SwigPyMapIterator_T<OutIterator, FromOper>
+    struct SwigPyMapValueIterator_T : SwigPyMapIterator_T<OutIterator, FromOper>
     {
-      SwigPyMapValueITerator_T(OutIterator curr, OutIterator first, OutIterator last, PyObject *seq)
+      SwigPyMapValueIterator_T(OutIterator curr, OutIterator first, OutIterator last, PyObject *seq)
 	: SwigPyMapIterator_T<OutIterator, FromOper>(curr, first, last, seq)
       {
       }
@@ -69,7 +69,7 @@
     inline SwigPyIterator*
     make_output_value_iterator(const OutIter& current, const OutIter& begin, const OutIter& end, PyObject *seq = 0)
     {
-      return new SwigPyMapValueITerator_T<OutIter>(current, begin, end, seq);
+      return new SwigPyMapValueIterator_T<OutIter>(current, begin, end, seq);
     }
   }
 }
@@ -77,16 +77,6 @@
 %fragment("StdMapTraits","header",fragment="StdMapCommonTraits")
 {
   namespace swig {
-    template <class SwigPySeq, class K, class T, class Compare, class Alloc >
-    inline void
-    assign(const SwigPySeq& swigpyseq, std::map<K,T,Compare,Alloc > *map) {
-      typedef typename std::map<K,T,Compare,Alloc >::value_type value_type;
-      typename SwigPySeq::const_iterator it = swigpyseq.begin();
-      for (;it != swigpyseq.end(); ++it) {
-	map->insert(value_type(it->first, it->second));
-      }
-    }
-
     template <class K, class T, class Compare, class Alloc>
     struct traits_asptr<std::map<K,T,Compare,Alloc > >  {
       typedef std::map<K,T,Compare,Alloc > map_type;
@@ -101,7 +91,7 @@
 %#endif
 	  res = traits_asptr_stdseq<map_type, std::pair<K, T> >::asptr(items, val);
 	} else {
-	  map_type *p;
+	  map_type *p = 0;
 	  swig_type_info *descriptor = swig::type_info<map_type>();
 	  res = descriptor ? SWIG_ConvertPtr(obj, (void **)&p, descriptor, 0) : SWIG_ERROR;
 	  if (SWIG_IsOK(res) && val)  *val = p;
@@ -120,7 +110,7 @@
       static PyObject *asdict(const map_type& map) {
 	SWIG_PYTHON_THREAD_BEGIN_BLOCK;
 	size_type size = map.size();
-	Py_ssize_t pysize = (size <= (size_type) INT_MAX) ? (Py_ssize_t) size : -1;
+	Py_ssize_t pysize = (size <= (size_type)PY_SSIZE_T_MAX) ? (Py_ssize_t)size : -1;
 	if (pysize < 0) {
 	  PyErr_SetString(PyExc_OverflowError, "map size not valid in python");
 	  SWIG_PYTHON_THREAD_END_BLOCK;
@@ -156,6 +146,7 @@
   %feature("python:slot", "mp_length", functype="lenfunc") __len__;
   %feature("python:slot", "mp_subscript", functype="binaryfunc") __getitem__;
   %feature("python:slot", "tp_iter", functype="getiterfunc") key_iterator;
+  %feature("python:slot", "sq_contains", functype="objobjproc") __contains__;
 
   %extend {
     %newobject iterkeys(PyObject **PYTHON_SELF);
@@ -211,7 +202,7 @@
     
     PyObject* keys() {
       Map::size_type size = self->size();
-      Py_ssize_t pysize = (size <= (Map::size_type) INT_MAX) ? (Py_ssize_t) size : -1;
+      Py_ssize_t pysize = (size <= (Map::size_type)PY_SSIZE_T_MAX) ? (Py_ssize_t)size : -1;
       SWIG_PYTHON_THREAD_BEGIN_BLOCK;
       if (pysize < 0) {
 	PyErr_SetString(PyExc_OverflowError, "map size not valid in python");
@@ -229,7 +220,7 @@
     
     PyObject* values() {
       Map::size_type size = self->size();
-      Py_ssize_t pysize = (size <= (Map::size_type) INT_MAX) ? (Py_ssize_t) size : -1;
+      Py_ssize_t pysize = (size <= (Map::size_type)PY_SSIZE_T_MAX) ? (Py_ssize_t)size : -1;
       SWIG_PYTHON_THREAD_BEGIN_BLOCK;
       if (pysize < 0) {
 	PyErr_SetString(PyExc_OverflowError, "map size not valid in python");
@@ -247,7 +238,7 @@
     
     PyObject* items() {
       Map::size_type size = self->size();
-      Py_ssize_t pysize = (size <= (Map::size_type) INT_MAX) ? (Py_ssize_t) size : -1;
+      Py_ssize_t pysize = (size <= (Map::size_type)PY_SSIZE_T_MAX) ? (Py_ssize_t)size : -1;
       SWIG_PYTHON_THREAD_BEGIN_BLOCK;
       if (pysize < 0) {
 	PyErr_SetString(PyExc_OverflowError, "map size not valid in python");
@@ -263,7 +254,6 @@
       return itemList;
     }
     
-    // Python 2.2 methods
     bool __contains__(const key_type& key) {
       return self->find(key) != self->end();
     }
@@ -295,7 +285,11 @@
     }
 
     void __setitem__(const key_type& key, const mapped_type& x) throw (std::out_of_range) {
+%#ifdef __cpp_lib_map_try_emplace
+      (*self).insert_or_assign(key, x);
+%#else
       (*self)[key] = x;
+%#endif
     }
 
     PyObject* asdict() {

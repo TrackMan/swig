@@ -4,698 +4,355 @@ See the RELEASENOTES file for a summary of changes in each release.
 Issue # numbers mentioned below can be found on Github. For more details, add
 the issue number to the end of the URL: https://github.com/swig/swig/issues/
 
-Version 4.0.0 (in progress)
+Version 4.4.0 (20 Oct 2025)
 ===========================
 
-2018-05-15: kwwette
-            [Octave] add support for version 4.4
-            - Should not introduce any user-visible incompatibilities
-
-2018-05-15: wsfulton
-            [C#, D, Java] Fix lookup of csconstruct, dconstruct and javaconstruct typemaps.
-            The C++ namespace was previously ignored when looking up the typemap.
-
-2018-05-15: wsfulton
-            [Javascript] Fix generated C++ code when using %nspace on namespaces that are more
-            than two levels deep.
-
-2018-05-14: wsfulton
-            Issue #1251 Add support for C++17 nested namespace definitions,
-            for example:
-              namespace A::B { ... }
-
-2018-05-11: wsfulton
-            [C#, D, Java] Add support so that the %csmethodmodifiers, %dmethodmodifiers,
-            %javamethodmodifiers can modify the method modifiers for the destructor wrappers
-            in the proxy class: dispose, Dispose, delete. With this feature, it is now possible
-            to make a C# proxy class sealed, eg when wrapping a class X, the virtual method modifiers
-            can be removed using:
-
-              %typemap(csclassmodifiers) X "public sealed class"
-              %csmethodmodifiers X::~X "public /*virtual*/";
-
-2018-04-18: olly
-	    [Python] Suppress new pycodestyle warning:
-	    E252 missing whitespace around parameter equals
-
-2018-04-07: goatshriek
-            [Ruby] #1213 Fix ruby %alias directive for global C/C++ functions.
-
-2018-04-03: olly
-	    [Ruby] Fix to pass Qnil instead of NULL to rb_funcall(), which silences GCC
-	    -Wconversion-null warning (on by default with recent GCC).
-
-2018-03-09: fultonwi
-            [Java] #1184 Fix swigReleaseOwnership() and swigTakeOwnership() regression
-            for non-director classes. Restores a dynamic_cast which was previously removed.
-
-2018-03-07: llongi
-	    Github PR #1166 - Fix preprocessor handling of macros with commas
-	    in a // comment.
-
-2018-02-18: JPEWdev
-            Patch #1164 - Add support for a command-line options file, also sometimes
-            called a response file. This is useful if the command-line options exceed
-            the system command-line length limit. To use, put the command-line options
-            into a file, then provide the file name prefixed with @, for example using
-            a file called args.txt:
-
-              swig @args.txt
-
-2018-02-11: wsfulton
-            [Javascript] #1187 Fix compilation error wrapping std::complex via
-            std_complex.i.
-
-2018-01-30: smarchetto
-            [Scilab] add type name argument in SWIG_ptr() function to cast from pointer address to typed pointers
-
-2018-01-16: wsfulton
-            Expressions following a preprocessor directive must now be separated by whitespace
-            or non-numeric characters. This syntax change makes the SWIG preprocessor work like
-            the C preprocessor in this area.
-
-            For example, the following code used be accepted as valid syntax:
-              #if1
-              #define ABC 123
-              #endif
-
-            Now you get an error:
-              example.h:1: Error: Unknown SWIG preprocessor directive: if1 (if this is a block of
-              target language code, delimit it with %{ and %})
-              example.h:3: Error: Extraneous #endif.
-
-            The following is the correct syntax:
-              #if 1
-              #define ABC 123
-              #endif
-
-            The following of course also works:
-              #if(1)
-              #define ABC 123
-              #endif
-
-2018-01-15: wsfulton
-            Fix issue #1183. Floating point exception evaluating preprocessor expressions
-            resulting in division by zero.
-
-2018-01-14: wsfulton
-            Fix issue #1172. Seg fault parsing invalid exponents in the preprocessor.
-
-2018-01-12: Liryna
-            [C#] Patch #1128. Add ToArray function to std::vector wrappers.
-
-2018-01-12: wsfulton
-            [Java] Fix issue #1156. Add missing throws clause for interfaces when using the
-            %interface family of macros.
-
-2018-01-05: wsfulton
-            Fix default arguments using expressions containing -> syntax error. Problem reported on
-            swig-user mailing list.
-
-2017-12-30: wsfulton
-            [Python] Replace pep8 with pycodestyle for checking the Python code style when
-            running Python tests.
-
-2017-12-30: davedissian
-            Fixed a symbol lookup issue when encountering a typedef of a symbol from the tag
-            namespace to the global namespace when the names are identical, such as 'typedef
-            struct Foo Foo;'.
-
-2017-12-13: wsfulton
-            [Perl] add missing support for directorfree typemaps.
-
-2017-12-13: wsfulton
-            Issue #1167 Fix directorout typemaps which were causing undefined behaviour when
-            returning pointers by reference.
-
-2017-12-08: olly
-	    [PHP] Use ZEND_MODULE_GLOBALS_ACCESSOR to access globals - this
-	    should make the generated code work with PHP 7.2.0.
-
-2017-12-04: wsfulton
-            [Python] Add missing checks for failures in calls to PyUnicode_AsUTF8String. Previously a
-            seg fault could occur when passing invalid UTF8 strings (low surrogates), eg passing
-            u"\udcff" to the C layer (Python 3).
-
-2017-11-24: joequant
-	    Fix #1124 and return R_NilValue for null pointers
-
-2017-11-29: wsfulton
-            [Java] director exception handling improvements.
-
-            When a director method throws an exception and it is caught by DirectorException
-            and passed back to Java using Swig::DirectorException::throwException, the Java
-            stack trace now contains the original source line that threw the exception.
-
-            Deprecate Swig::DirectorException::raiseJavaException, please replace usage with
-            Swig::DirectorException::throwException.
-
-2017-10-26: wsfulton
-            Add support for C++11 ref-qualifiers when using directors.
-
-2017-10-26: wsfulton
-            Fix generated code when using directors and methods returning const ref pointers.
-
-2017-10-26: wsfulton
-            [C#, D, Java, Octave, R, Scilab] Port director typemaps to these additional languages.
-            Issue #700.
-
-2017-10-26: radarsat1
-            [Ruby Python] Patch #1029 - Correct handling of null using directors and shared_ptr.
-
-2017-10-10: joequant
-	    [R] pass enum expressions to R.  This will generate
-	    incorrect files when there is an arithmetic expression
-	    in the enum, but this is better than silently generating
-	    incorrect code
-
-2017-10-09: olly
-	    [PHP] Fix incorrect wrapper code generated when there's a
-	    combination of overloading, parameters with a default value
-	    and %newobject.  Fixes https://sourceforge.net/p/swig/bugs/1350/
-
-2017-10-09: olly
-	    Remove GCJ support.  It isn't in a good state and doesn't seem to
-	    be used, and GCC7 dropped GCJ.  Closes
-	    https://sourceforge.net/p/swig/bugs/823/
-
-2017-10-07: olly
-	    Fix preprocessor handling of empty macro arguments to match that of
-	    C/C++ compilers.  Fixes https://github.com/swig/swig/pull/1111 and
-	    https://sourceforge.net/p/swig/bugs/826/
-
-2017-10-06: wsfulton
-            [Python] Issue #1108. Fix platform inconsistency in Python default argument handling.
-            32 bit and 64 bit compiled versions of SWIG generated different Python files
-            when default arguments were outside the range of 32 bit signed integers.
-            The default arguments specified in Python are now only those that are in the
-            range of a 32 bit signed integer, otherwise the default is obtained from C/C++ code.
-
-2017-10-02: wsfulton
-            [C#] Fix std::complex types passed by value.
-
-2017-10-02: wsfulton
-            [Javascript, Python, Ruby] Issue #732 - Missing type information for std::complex
-            in std_complex.i meant that previously std::complex always had to be fully qualified
-            in order to be wrapped with the appropriate typemaps.
-
-2017-10-01: joequant
-            allow R package names with docs
-	    allowing multiple get accessors in R
-	    fix smrt-pointer and NAMESPACE support
-	    constructors now returning smart pointers (if class
-	    declared as such)
-	    smart-pointer classes deriving from parent smart-pointers
-
-2017-09-29: wsfulton
-            Issue #1100 - Allow an instantiated template to have the same name in the target
-            language as the C++ template name, for example, this is now possible:
-
-              template<typename T> struct X { ... };
-              %template(X) X<int>;
-
-2017-09-23: wsfulton
-            Issue #1098. Fix overloading of shared_ptr with underlying pointer types, eg:
-
-              void m(std::shared_ptr<T> p);
-              void m(T &p);
-              void m(T *p);
-
-            Only the first method is wrapped and the others are ignored/shadowed.
-            The implementation is done via a new attribute in the 'typecheck' typemap called
-            'equivalent'. If specified, it must contain the equivalent pointer type for overloading
-            and can only be used for the special SWIG_TYPECHECK_POINTER precedence level.
-            The shared_ptr 'typecheck' typemaps have been modified accordingly.
-            Here is a simplified version:
-
-              %typemap(typecheck, precedence=SWIG_TYPECHECK_POINTER, equivalent="T *")
-                T,
-                T CONST &,
-                T CONST *,
-                T *CONST&,
-                std::shared_ptr< T >,
-                std::shared_ptr< T > &,
-                std::shared_ptr< T > *,
-                std::shared_ptr< T > *&
-                { ... }
-
-            Overloading with any of these types will result in SWIG ignoring all but the first
-            overloaded method by default. Without the 'equivalent' attribute, wrapping the overloaded
-            methods resulted in types being shadowed (scripting languages) or code that did not
-            compile (statically typed languages).
-
-2017-09-19: futatuki
-            [Python] #1003 Add --with-2to3=/path/to/2to3 option to configure.
-
-2017-09-18: wsfulton
-            Fix type promotion wrapping constant expressions of the form:
-              # define EXPR_MIXED1    (0x80 + 11.1) - 1
-            This was previously an integral type instead of a floating point type.
-
-2017-09-17: wsfulton
-            Fix generated code for constant expressions containing wchar_t L literals such as:
-              # define __WCHAR_MAX    (0x7fffffff + L'\0')
-              # define __WCHAR_MIN    (-__WCHAR_MAX - 1)
-
-2017-09-10: mlamarre
-            [Python] Patch #1083. Define_DEBUG to 1 to do exactly like Visual Studio
-            /LDd, /MDd or /MTd compiler options.
-
-2017-08-25: wsfulton
-            Issue #1059. Add support for C++11 ref-qualifiers on non-static member functions.
-            Members with lvalue ref-qualifiers such as:
-
-              struct RQ {
-                void m1(int x) &;
-                void m2(int x) const &;
-              };
-
-            are wrapped like any other member function. Member functions with rvalue ref-qualifiers
-            are ignored by default, such as:
-
-              struct RQ {
-                void m3(int x) &&;
-                void m4(int x) const &&;
-              };
-
-              example.i:7: Warning 405: Method with rvalue ref-qualifier m3(int) && ignored.
-              example.i:8: Warning 405: Method with rvalue ref-qualifier m4(int) const && ignored.
-
-            These can be unignored and exposed to the target language, see further documentation in
-            CPlusPlus11.html.
-
-2017-08-16: wsfulton
-            Fix #1063. Add using declarations to templates into typedef table.
-
-            Using declarations to templates were missing in SWIG's internal typedef tables.
-            This led to a few problems, such as, templates that did not instantiate and generated
-            C++ code that did not compile as SWIG did not know what scope the template was
-            in. This happened mostly when a using declaration was used on a template type in a
-            completely unrelated namespace.
-
-2017-08-16: wsfulton
-            Fix type lookup in the presence of using directives and using declarations.
-
-            Fix some cases of type lookup failure via a combination of both using directives and
-            using declarations resulting in C++ code that did not compile as the generated type was
-            not fully qualified for use in the global namespace. Example below:
-
-              namespace Space5 {
-                namespace SubSpace5 {
-                  namespace SubSubSpace5 {
-                    struct F {};
-                  }
-                }
-                using namespace SubSpace5;
-                using SubSubSpace5::F;
-                void func(SubSubSpace5::F f);
+2025-10-19: phetdam
+            [Python] #3286 Update docs for using setuptools instead of distutils. Improve
+            docs for the -M family of options for dependency file generation.
+
+2025-10-15: pertusus
+            Fix some -Wstrict-prototypes warnings.
+
+2025-10-02: wsfulton
+            [Python] #3189 Modify StopIteration implementation for it to work across
+            multiple modules.
+
+2025-10-02: wsfulton
+            [Python] Fix out typemaps for PyObject * to correctly handle NULL return.
+
+            NULL is used as the return value for indicating that a Python exception
+            has been raised. Previously C Python API code could have been called,
+            but now execution is immediately returned to the Python interpreter.
+
+2025-09-01: AnnaAraslanova
+            [Python] #3254 Bug fix - mark modules as no-gil compatible only when -nogil
+            flag is used.
+
+2025-08-27: olly
+	    [PHP] Fix unused label warnings (-Wunused-label in GCC and clang).
+
+2025-08-18: greyshepherd-star
+            [C#] #3248 Fix potential null poiner deref calling equals method in std::list.
+
+2025-08-13: olly, jim-easterbrook
+	    [Python] #2786 Fix handling of "default" typemap applied to method which
+	    takes a single argument when "-builtin" option is used.
+
+2025-08-13: crusaderky
+            [Python] #3235 Free-threaded race condition fix in SWIG_TypeQuery.
+
+2025-08-11: erezgeva
+            #3238 Add typecheck typemaps for adding in overloading support to the
+            (size_t LENGTH, char *STRING) and (char *STRING, size_t LENGTH) family of
+            multi-argument typemaps.
+
+2025-08-11: erezgeva, wsfulton
+            [D] #3236 Add missing use of 'din' typemap in constructors.
+
+2025-08-11: QuantamHD
+            [Tcl] #3246 Fix memory leak in constant registration.
+
+2025-08-08: crusaderky
+            [Python] #3230 SWIG_AsArgcArgv memory fixes and thread-safety fixes for
+            free-threading Python.
+
+2025-08-01: erezgeva
+            [D] #3234 Ensure 'dtype' multi-argument typemaps are being correctly used.
+
+2025-07-28: erezgeva
+            #2937 Add missing support for (size_t LENGTH, char *STRING) multi-argument typemaps.
+
+2025-07-23: jim-easterbrook
+            [Python] #3218 Added weakref support to builtin wrappers.
+
+2025-07-18: crusaderky
+            [Python] #3215 Added -nogil flag to mark modules as free-threading compatible.
+
+2025-07-18: jim-easterbrook
+            [Python] #3219 Python builtin heap types buffer support via the
+            "python:bf_getbuffer" and "python:bf_releasebuffer" features improvement.
+            Add workarounds/fixes for python-3.9 and earlier and ignore when using
+            the limited API for versions prior to python-3.11 instead of generating
+            code that won't compile.
+
+2025-07-09: timfel
+            [Python] #3217 Fix undefined behaviour in SwigPyObject_richcompare and
+            SwigPyObject_compare.
+
+2025-07-04: wsfulton
+            [Python] #3260 Remove unused, out of date SWIG_Python_TypeError method.
+            This support function designed for typemaps stopped being used within SWIG
+            typemaps 20 years ago. Any users still relying on it have a few options
+            which are outlined in #3260.
+
+2025-06-27: wsfulton
+            [Python] Raise an AttributeError instead of TypeError when there are internal
+            and unexpected coding errors around member variable wrappers.
+
+2025-06-27: jim-easterbrook
+            [Python] #3206 Fix seg fault or return without exception error when attempting
+            to delete (del) a wrapped member variable (builtin wrappers). This will now
+            raise an AttributeError.
+
+2025-06-27: ianlancetaylor
+            [Go] Use unsafe for Go strings rather than byte arrays.
+            Update minimum Go supported version to 1.20.
+
+2025-06-23: jschueller
+            [Python] #3184 #3196 Support multi-phase module initialization.
+
+2025-06-23: wsfulton
+            Fix numerous unused variable warnings (-Wunused-variable in gcc).
+
+2025-06-20: wsfulton
+            [Python] #3196 Heap types are now generated by default instead of static types
+            for the builtin wrappers. Defining SWIG_HEAPTYPES to use heap types
+            is no longer required.
+
+2025-06-18: wsfulton
+            [Python] #3196 Add support for -builtin and heap types turned on with
+            -DSWIG_HEAPTYPES. This is an important step towards supporting a number of
+            modern Python wrapper features including Py_LIMITED_API (Stable ABI compliance),
+            and sharing types between interpreters.
+
+2025-06-17: olly
+	    #3197 Improve parsing of expressions related to functions calls
+	    and/or member access.  For example, the following no longer give
+	    parse errors:  `g().d()`, `g().D`, `a::b.c()`, `x::y.z`, `(f(1) <
+	    g(2))`, `sizeof f(a,b)`
+
+2025-06-11: wsfulton
+            Remove pyname_compat.i file providing legacy names which changed in
+            swig-1.3.37 and script Tools/pyname_patch.py which helped rename
+            uses in user interface files.
+
+2025-06-09: tvlEIVA
+	    [Javascript] #3138 Use SetNativeDataProperty() instead of
+	    SetAccessor() which fixes compatibility with recent v8 versions.
+
+2025-06-09: olly
+	    The $function variable in %exception/feature:except typemaps is
+	    no longer recognised.  It was marked as deprecated in 2008.
+	    Use $action (added in 2001) instead which has exactly the same
+	    value.
+
+	    SWIG/D has an unrelated $function variable which is substituted in
+	    %pragma(d) wrapperloaderbindcommand - this is still supported.
+
+2025-06-09: olly
+	    [Python] #3162 Fix wrapping of a bool const& parameter with a
+	    default value.  Regression introduced in SWIG 4.3.0.
+
+2025-06-09: olly
+	    [Tcl] #2887 Fix -external-runtime to generate a header which works
+	    with Tcl 8.x.  Regression introduced in SWIG 4.2.1.  As a bonus
+	    the generated header no longer requires the user to include tcl.h
+	    and various standard C library headers before including it.
+
+2025-05-28: olly
+	    #3186 Fix parse error for C++14 forward declaration of function with
+	    auto return type and no trailing return type.
+
+2025-05-19: jschueller
+            [Python] #3059 Use new buffer protocol for PY_LIMITED_API for python-3.11
+            and later since this is when it was added to the stable ABI, noting that
+            the old buffer protocol was removed in python-3.13.
+
+2025-05-16: wsfulton
+            #3179 Fix a regression using -kwargs since swig-4.1 in template expansion of
+            function parameter values.
+
+2025-05-13: wsfulton
+            Fix undefined behaviour in directorout typemaps for void * and const char *& if
+            the same wrapped function is called more than once. Note that using returning
+            pointers in directors is still full of traps and not recommended. As such,
+            warning SWIGWARN_TYPEMAP_DIRECTOROUT_PTR (473) continues to be issued.
+
+2025-05-11: wsfulton
+            [Python] Move the SwigPyObject, SwigPyPacked, SwigVarLink (renamed from
+            swigvarlink) support Python types to the SWIG runtime module (currently called
+            swig_runtime_data5).
+
+            Note that these affect the Python runtime implementation, so the recently bumped
+            SWIG_RUNTIME_VERSION to 5 for all scripting languages will now include this change.
+
+2025-05-10: jschueller, wsfulton
+            [Python] #2881 #3061 #3160 DeprecationWarning fixes when using 'python -Walways'
+            or if using one of the types being warned about:
+
+              DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+              DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+              DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+            The warning was present if code was generated without using -builtin in 4.3.x.
+            The warning was only present if using the Python limited API in 4.2.1 and earlier.
+
+2025-04-30: wsfulton
+            [Python] #3134 Fix maximum size of strings being marshalled from C/C++
+            into Python. This has been changed from INT_MAX to PY_SSIZE_T_MAX in line
+            with the Python C API maximum string length handling change in python-2.5.
+
+            Similarly for the number of elements in the Python STL container wrappers.
+
+2025-04-29: r-barnes, wsfulton
+            #3027 Remove generation of empty dynamic exception specifications - throw(),
+            which are deprecated in c++11. This was only when using the director feature.
+            A new macro SWIG_NOEXCEPT is used which ensures that throw() or noexcept is
+            used for the appropriate C++ standard that the compiler is compiling for.
+
+2025-04-28: jschueller, henryiii
+            [Python] #2967 Use __spec__.parent as the first approach to obtaining
+            a module's package name when importing the low-level C/C++ module as the
+            previous approach looking for __package__ is due to be removed in python-3.15.
+            __package__ is now used as a fallback if __spec__.parent fails.
+
+2025-04-28: jschueller, henryiii
+            [Python] #3066 #3159 Add ht_token slot for python-3.14 support.
+
+2025-04-18: akorobka
+            #103 Thread safety bugfix in the runtime type system.
+
+            Replaces the casting linked list with a list of arrays that does not get
+            modified at runtime. The content of the cast arrays is sorted during the
+            initialization so that subsequent lookups can use binary search over the
+            entries obtaining O(log n) performance.
+
+            Bump SWIG_RUNTIME_VERSION to 5 due to associated changes in runtime type
+            system.
+
+	    *** POTENTIAL INCOMPATIBILITY ***
+
+2025-04-17: klausspanderen
+            [Python] #3137 Add support for free threading Python (aka no-gil) where the
+            GIL can be disabled.
+
+2025-04-02: wsfulton
+            [Java] #3156 Support JDK 21 and std::list. Fixes removeFirst() and removeLast()
+            incompatibilities with methods of the same name in the base class,
+            AbstractSequentialList, which were added in JDK 21 with a different
+            return type. The addFirst() and addLast() methods were also added, all part
+            of JEP-431 Sequenced Collections, see https://openjdk.org/jeps/431.
+
+            If these 4 methods are needed, as SWIG previously generated them, then add
+            the following to your interface file after %include <std_list.i>:
+
+              %extend std::list {
+                void removeLast() { $self->pop_back(); }
+                void removeFirst() { $self->pop_front(); }
+                void addLast(const T &value) { $self->push_back(value); }
+                void addFirst(const T &value) { $self->push_front(value); }
               }
 
-2017-08-16: wsfulton
-            Issue #1051. %template scope enforcement and class definition fixes.
-
-            The scoping rules around %template have been specified and enforced.
-            The %template directive for a class template is the equivalent to an
-            explicit instantiation of a C++ class template. The scope for a valid
-            %template instantiation is now the same as the scope required for a
-            valid explicit instantiation of a C++ template. A definition of the
-            template for the explicit instantiation must be in scope where the
-            instantiation is declared and must not be enclosed within a different
-            namespace.
-
-            For example, a few %template and C++ explicit instantiations of std::vector
-            are shown below:
-
-              // valid
-              namespace std {
-                %template(vin) vector<int>;
-                template class vector<int>;
-              }
-
-              // valid
-              using namespace std;
-              %template(vin) vector<int>;
-              template class vector<int>;
-
-              // valid
-              using std::vector;
-              %template(vin) vector<int>;
-              template class vector<int>;
-
-              // ill-formed
-              namespace unrelated {
-                using std::vector;
-                %template(vin) vector<int>;
-                template class vector<int>;
-              }
-
-              // ill-formed
-              namespace unrelated {
-                using namespace std;
-                %template(vin) vector<int>;
-                template class vector<int>;
-              }
-
-              // ill-formed
-              namespace unrelated {
-                namespace std {
-                  %template(vin) vector<int>;
-                  template class vector<int>;
-                }
-              }
-
-              // ill-formed
-              namespace unrelated {
-                %template(vin) std::vector<int>;
-                template class std::vector<int>;
-              }
-
-            When the scope is incorrect, an error now occurs such as:
-
-              cpp_template_scope.i:34: Error: 'vector' resolves to 'std::vector' and
-              was incorrectly instantiated in scope 'unrelated' instead of within scope 'std'.
-
-            Previously SWIG accepted the ill-formed examples above but this led to
-            numerous subtle template scope problems especially in the presence of
-            using declarations and using directives as well as with %feature and %typemap.
-
-            Actually, a valid instantiation is one which conforms to the C++03
-            standard as C++11 made a change to disallow using declarations and
-            using directives to find a template.
-
-              // valid C++03, ill-formed C++11
-              using std::vector;
-              template class vector<int>;
-
-            Similar fixes for defining classes using forward class references have
-            also been put in place. For example:
-
-              namespace Space1 {
-                struct A;
-              }
-              namespace Space2 {
-                struct Space1::A {
-                  void x();
-                }
-              }
-
-            will now error out with:
-
-              cpp_class_definition.i:5: Error: 'Space1::A' resolves to 'Space1::A' and
-              was incorrectly instantiated in scope 'Space2' instead of within scope 'Space1'.
-
-            Previously some symbols would have been instantiated in the wrong scope and led
-            to lots of scope problems involving SWIG typemaps, features, renames etc.
-            You will need to correct the scope used in other SWIG directives which do not
-            support 'using declarations' and 'using directives'. For example, if you previously had:
-
-              %rename(Zap) vector<int>::clear;
-              using namespace std;
-              %template(VectorInt) vector<int>;
-
-            Prior versions of SWIG incorrectly instantiated vector<int> in the global namespace
-            and so the %rename matched. Now the template is instantiated in the correct namespace,
-            so is fully qualified as std::vector<int>. The other SWIG directives need correcting as
-            they do not follow 'using declarations' and 'using directives'. Change it to:
-
-              %rename(Zap) std::vector<int>::clear;
-              using namespace std;
-              %template(vin) vector<int>;
-
-
-            *** POTENTIAL INCOMPATIBILITY ***
-
-2017-08-16: wsfulton
-            Fix scope lookup for template parameters containing unary scope operators.
-
-            Fixes cases like:
-
-            namespace Alloc {
-              template<typename T> struct Rebind {
-                typedef int Integer;
-              };
-            }
-            %template(RebindBucket) Alloc::Rebind< Bucket >;
-            OR
-            %template(RebindBucket) Alloc::Rebind< ::Bucket >;
-
-            Alloc::Rebind< Bucket >::Integer Bucket1();
-            Alloc::Rebind< ::Bucket >::Integer Bucket2();
-            Alloc::Rebind<::template TemplateBucket<double>>::Integer Bucket3();
-
-2017-08-16: wsfulton
-            For templates only, the template parameters are fully resolved when
-            handling typemaps. Without this, it is too hard to have decent rules
-            to apply typemaps when parameter types are typedef'd and template
-            parameters have default values.
-
-            Fixes %clear for typedefs in templates, eg:
-
-              %typemap("in") XXX<int>::Long "..."
-              template typename<T> struct XXX {
-                typedef long Long;
-              };
-              %clear XXX<int>::Long;
-
-            as the typemap was previously incorrectly stored as a typemap for long
-            instead of XXX<int>::Long.
-
-2017-08-05: olly
-	    [C++11] Allow static_assert at the top level (and disallow it right
-	    after template<T>).  Fixes https://github.com/swig/swig/issues/1031
-	    reported by Artem V L.
-
-2017-08-02: wsfulton
-            Fix incorrectly shown warning when an empty template instantiation was used on a
-            class used as a base class and that base class was explicitly ignored with %ignore.
-            Example of the warning which will no longer appear:
-
-              Warning 401: Base class 'Functor< int,int >' has no name as it is an empty
-              template instantiated with '%template()'. Ignored.
-
-2017-07-17: fflexo
-            [Java] #674 Add std_list.i to add support for std::list containers. The Java proxy
-            extends java.util.AbstractSequentialList and makes the C++ std::list container look
-            and feel much like a java.util.LinkedList from Java.
-
-2017-07-07: wsfulton
-            [Python] Fix display of documented template types when using the autodoc
-            feature. For example when wrapping:
-
-              %feature("autodoc");
-              template<typename X> struct T {};
-              %template(TInteger) T<int>;
-
-            the generated documentation contains:
-              """Proxy of C++ T< int > class."""
-            instead of:
-              """Proxy of C++ T<(int)> class."""
-            and
-              """__init__(TInteger self) -> TInteger"""
-            instead of
-              """__init__(T<(int)> self) -> TInteger"""
-
-2017-06-27: nihaln
-	    [PHP] Update the OUTPUT Typemap to add return statement to the
-	    PHP Wrapper.
-
-2017-06-27: nihaln
-	    [PHP] Update the enum and value examples to use the OO wrappers
-	    rather than the flat functions produced with -noproxy.  There's
-	    not been a good reason to use -noproxy for since PHP5 OO wrapping
-	    was fixed back in 2005.
-
-2017-06-23: m7thon
-            [Python] fix and improve default argument handling:
-
-            1. Fix negative octals. Currently not handled correctly by `-py3`
-               (unusual case, but incorrect).
-            2. Fix arguments of type "octal + something" (e.g. `0640 | 04`).
-               Currently drops everything after the first octal. Nasty!
-            3. Fix bool arguments "0 + something" (e.g. `0 | 1`) are always
-               "False" (unusual case, but incorrect).
-            4. Remove special handling of "TRUE" and "FALSE" from
-               `convertValue` since there's no reason these have to match
-               "true" and "false".
-            5. Remove the Python 2 vs. Python 3 distinction based on the
-               `-py3` flag. Now the same python code is produced for default
-               arguments for Python 2 and Python 3. For this, octal default
-               arguments, e.g. 0644, are now wrapped as `int('644', 8)`. This
-               is required, as Python 2 and Python 3 have incompatible syntax
-               for octal literals.
-
-            Fixes #707
-
-2017-06-21: futatuki
-            #1004 - Fix ccache-swig executable name to respect configure's --program-prefix and
-            --program-suffix values if used.
-
-2017-06-21: tamuratak
-            [Ruby] #911 - Add std::wstring support.
-
-2017-06-19: wsfulton
-            [Python] Fix handling of rich comparisons when wrapping overloaded operators:
-
-              operator<  operator<=  operator>  operator>=  operator==  operator!=
-
-            Previously a TypeError was always thrown if the type was not correct. NotImplemented
-            is now returned from these wrapped functions if the type being compared with is
-            not correct. The subsequent behaviour varies between different versions of Python
-            and the comparison function being used, but is now consistent with normal Python
-            behaviour. For example, for the first 4 operator overloads above, a TypeError
-            'unorderable types' is thrown in Python 3, but Python 2 will return True or False.
-            NotImplemented should be returned when the comparison cannot be done, see PEP 207 and
-            https://docs.python.org/3/library/constants.html#NotImplemented
-
-            Note that the bug was only present when overloaded operators did not also have a
-            function overload.
-
-            Fixes SF bug #1208 (3441262) and SF patch #303.
-
-            *** POTENTIAL INCOMPATIBILITY ***
-
-2017-06-17: fabrice102
-            [Go] Fix Go callback example.  Fixes github #600, #955, #1000.
-
-2017-06-16: wsfulton
-            Make sure warning and error messages are not split up by other processes writing to
-            stdout at the same time.
-
-2017-06-16: wsfulton
-            [R] Fix wrapping function pointers containing rvalue and lvalue reference parameters.
-
-2017-06-13: olly
-	    [Perl] Fix testsuite to work without . in @INC - it was removed in
-	    Perl 5.26 for security reasons, and has also been removed from
-	    older versions in some distros.  Fixes
-	    https://github.com/swig/swig/issues/997 reported by lfam.
-
-2017-06-03: wsfulton
-            Fix %import on a file containing a file scope %fragment forced inclusion to not
-            generate the fragment contents as %import should not result in code being generated.
-            The behaviour is now the same as importing code insertion blocks.
-            Wrapping FileC.i in the following example will result in no generated code, whereas
-            previously "#include <limits.h>" was generated:
-
-              // FileA.i
-              %fragment("<limits.h>", "header") %{
-                #include <limits.h>
-              %}
-
-              %{
-                #include <stdio.h>
-              %}
-              %fragment("<limits.h>");
-
-              // FileC.i
-              %import "FileA.i"
-
-            *** POTENTIAL INCOMPATIBILITY ***
-
-2017-05-26: Volker Diels-Grabsch, vadz
-            [Java] #842 Extend from java.util.AbstractList<> and implement java.util.RandomAccess for
-            std::vector wrappers. This notably allows to iterate over wrapped vectors in a natural way.
-2017-05-30: davidcl
-            [Scilab] #994 Undefined symbol error when loading in Scilab 6
-
-2017-05-25: asibross
-            [Java] #370 #417 Missing smart pointer handling in Java director extra methods
-            swigReleaseOwnership() and swigTakeOwnership().
-
-2017-05-23: wsfulton
-            [Java] #230 #759 Fix Java shared_ptr and directors for derived classes java compilation
-            error.
-
-            For shared_ptr proxy proxy classes, add a protected method swigSetCMemOwn for modifying
-            the swigCMemOwn and swigCMemOwnDerived member variables which are used by various other
-            methods for controlling memory ownership.
-
-2017-05-21: Sghirate
-            [Java, C#, D] #449 Remove unnecessary use of dynamic_cast in directors to enable
-            non-RTTI compilation.
-
-2017-05-21: wsfulton
-            [Python] #993 Fix handling of default -ve unsigned values, such as:
-              void f(unsigned = -1U);
-
-2017-05-20: jschueller
-            [Python] #991 Fix E731 PEP8 warning: do not assign a lambda expression
-
-2017-05-16: nihal95
-            [PHP] Add %pragma version directive to allow the version of the
-            extension to be set.  Patch #970, fixes #360.
-
-2017-05-13: yag00
-            Patch #975 - Add support for noexcept on director methods.
-
-2017-04-27: redbrain
-            Issue #974, Patch #976 - Fix preprocessor handling of macros with commas in a comment.
-
-2017-04-25: jleveque
-            [Lua] #959 - Fix Visual Studio C4244 conversion warnings in Lua wrappers.
-
-2017-04-21: tamuratak
-            [Ruby] #964 - Add shared_ptr director typemaps.
-
-2017-04-20: wsfulton
-            [Ruby] #586, #935 Add assert for invalid NULL type parameter when calling SWIG_Ruby_NewPointerObj.
-
-2017-04-20: tamuratak
-            [Ruby] #930, #937 - Fix containers of std::shared_ptr.
-            Upcasting, const types (eg vector<shared_ptr<const T>>) and NULL/nullptr support added.
-
-2017-04-12: smarchetto
-            [Scilab] New parameter targetversion to specify the Scilab target version (5, 6, ..) for code generation
-            With Scilab 6 target specified, identifier names truncation is disabled (no longer necessary)
-
-2017-03-24: tamuratak
-            [Ruby] Fix #939 - Wrapping std::vector<bool> fix due to incorrect null checks
-            on VALUE obj.
-
-2017-03-17: vadz
-            [C#] #947 Add support for std::complex<T>
-
-2017-03-17: wsfulton
-            [Go] Fix handling of typedef'd function pointers and typedef'd member function pointers
-            such as:
-
-              typedef int (*FnPtr_td)(int, int);
-              int do_op(int x, int y, FnPtr_td op);
-
-2017-03-16: wsfulton
-            Add support for member const function pointers such as:
-
-              int fn(short (Funcs::* parm)(bool)) const;
-
-            Also fix parsing of references/pointers and qualifiers to member
-            pointers such as:
-
-              int fn(short (Funcs::* const parm)(bool));
-              int fn(short (Funcs::* & parm)(bool));
-
-2017-03-10: wsfulton
-            Extend C++11 alternate function syntax parsing to support const and noexcept, such as:
-
-              auto sum1(int x, int y) const -> int { return x + y; }
-              auto sum2(int x, int y) noexcept -> int { return x + y; }
-
-2017-02-29: tamuratak
-            [Ruby] #917 - Add Enumerable module to all container class wrappers. It was missing
-            for std::list, std::multiset, std::unordered_multiset and std::unordered_map.
-
-2017-02-27: assambar
-            [C++11] Extend parser to support throw specifier in combination
-            with override and/or final.
-
-2017-02-10: tamuratak
-            [Ruby] #883 - Add support for C++11 hash tables:
-              std::unordered_map
-              std::unordered_set
-              std::unordered_multimap
-              std::unordered_multiset
-
-2017-02-08: jcsharp
-            [C#] #887 Improve std::vector<T> wrapper constructors -
-            Replace constructor taking ICollection with IEnumerable and also add IEnumerable<T>
-            constructor to avoid the boxing and unboxing overhead of the original constructor,
-            when the type parameter is a value type.
+            But note that this will give javac compiler errors when using JDK 21 and
+            later for removeFirst() and removeLast().
+
+2025-04-02: wsfulton
+            [Java] Fix javac -Xlint warning [this-escape] - JDK 21
+
+            [this-escape] possible 'this' escape before subclass is fully initialized
+
+            Add @WarningSuppressions("this-escape") annotation to all director
+            constructors as the warning is a false positive. Similarly for
+            std::list, std::vector, std::set, std::unordered_set constructors.
+
+2025-04-02: wsfulton
+            [Java] Fix javac -Xlint warnings:
+
+            - [cast] redundant cast in std::unordered_map wrappers put method
+            - [rawtypes] found raw type in std::list constructor wrapper
+
+2025-04-02: olly
+	    #3152 Remove typemaps for `signed wchar_t` and `unsigned wchar_t`
+	    in C++ mode.  These types aren't specified by the C++ standard and
+	    give an error with modern versions of GCC, clang or MSVC.  Older
+	    GCC and clang did allow them (tested with GCC 8 and clang 8), but
+	    our typemap code used `UWCHAR_MAX` which doesn't seem to have ever
+	    been defined by any compiler.
+
+2025-04-01: olly
+	    [MzScheme/Racket] #920 #2830 Remove support for MzScheme/Racket.
+	    It's a long time since SWIG's support was actively maintained and
+	    a major overhaul would be needed to support Racket 8, for which
+	    nobody has stepped forward in over 3 years.
+
+2025-03-03: olly
+	    [Guile] The typemaps in ports.i now generate code which compiles
+	    even if the wrapper is compiled with in a strict standards
+	    conformance mode such as -std=c11.
+
+2025-02-28: olly
+	    #3127 Fix bad generated code in some cases when a constant
+	    expression is split over multiple lines and used as part of a type.
+	    This manifested in cases where SWIG's parser gets the expression
+	    text by skipping to the matching closing parenthesis and grabbing
+	    the skipped program text.
+
+2025-02-19: wsfulton
+            Add support for $n special variable expansion in the names of typemap
+            local variables, such as:
+
+              %typemap(in) int MYINT (int $1_temp) { ... }
+
+            $1_temp is typically expanded to arg1_temp, arg2_temp etc depending on
+            which argument the typemap is applied to.
+
+2025-02-05: wsfulton
+            #3075 Regression fix when using -keyword, kwargs or compactdefaultargs
+            option. Restore generating a non-const cast to the default value when
+            wrapping const pointer default arguments.
+
+2024-12-07: arbrauns
+	    [Lua] #3083 Fix "unsigned long long" being interpreted as "signed
+	    long long".
+
+2024-11-22: wsfulton
+            Use new <errno.h> fragment for including this header when needed instead
+            of either always including it or relying on it being included elsewhere.
+            Fixes the removal of errno.h when defining PY_LIMITED_API for python-3.11
+            and later.
+
+2024-11-09: wsfulton
+            #3064 Perform repeated typedef lookups instead of a single typedef
+            lookup on the type being applied in %apply when looking for a family
+            of typemaps to apply.
+
+2024-11-01: wsfulton
+            Fix internal error handling parameters that are typedefs to references
+            when using the compactdefaultargs feature.
+
+2024-10-30: wsfulton
+            #1851 Fix handling of parameters with default arguments that are
+            initializer lists when using -keyword or the compactdefaultargs option.
+
+2024-10-25: olly
+	    [Guile] Allow wrapping anything with a `varout` typemap as a
+	    constant.
+
+2024-10-24: olly
+	    [Perl] https://sourceforge.net/p/swig/bugs/1134/ Ensure C++
+	    local variables get destroyed before throwing a Perl exception.
+
+2024-10-22: olly
+	    #3034 SWIG's testsuite is now free of SWIG warnings for all target
+	    languages and the SWIG -Werror option is now enabled automatically
+	    to ensure this doesn't regress.
+
+2024-10-22: olly
+	    #2998 Drop support for specifying SWIG's internal type string
+	    representation in interface files.  This "secret developer feature"
+	    was only documented in developer documentation, and had no test
+	    coverage.
+
+	    It allowed specifying an SWIG internal syntax type string, e.g.:
+
+	      `p.a(10).p.f(int, p.f(int).int)` foo(int, int (*x)(int));
+
+	    In the unlikely event that anyone was using this, we recommend you
+	    use the standard C/C++ type syntax instead, which will work with
+	    previous SWIG releases too, e.g.:
+
+	      (*(*foo(int, int (*)(int)))[10])(int, int (*)(int));
+
+	    The C/C++ syntax has the major advantage of being the same syntax
+	    that C/C++ compilers use.

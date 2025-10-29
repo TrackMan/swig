@@ -23,21 +23,25 @@ SWIGINTERN jint SWIG_VectorSize(size_t size) {
 }
 }
 
-%define SWIG_STD_VECTOR_MINIMUM_INTERNAL(CTYPE, CREF_TYPE)
+%define SWIG_STD_VECTOR_MINIMUM_INTERNAL(CTYPE, CONST_REFERENCE)
 %typemap(javabase) std::vector< CTYPE > "java.util.AbstractList<$typemap(jboxtype, CTYPE)>"
 %typemap(javainterfaces) std::vector< CTYPE > "java.util.RandomAccess"
 %proxycode %{
+  @SuppressWarnings("this-escape")
   public $javaclassname($typemap(jstype, CTYPE)[] initialElements) {
     this();
+    doReserve(initialElements.length);
+
     for ($typemap(jstype, CTYPE) element : initialElements) {
-      add(element);
+      doAdd(element);
     }
   }
 
+  @SuppressWarnings("this-escape")
   public $javaclassname(Iterable<$typemap(jboxtype, CTYPE)> initialElements) {
     this();
     for ($typemap(jstype, CTYPE) element : initialElements) {
-      add(element);
+      doAdd(element);
     }
   }
 
@@ -73,31 +77,33 @@ SWIGINTERN jint SWIG_VectorSize(size_t size) {
   public int size() {
     return doSize();
   }
+
+  public int capacity() {
+    return doCapacity();
+  }
+
+  public void reserve(int n) {
+    doReserve(n);
+  }
 %}
 
   public:
     typedef size_t size_type;
     typedef ptrdiff_t difference_type;
     typedef CTYPE value_type;
-    typedef CTYPE &reference;
-    typedef CREF_TYPE const_reference;
     typedef CTYPE *pointer;
     typedef CTYPE const *const_pointer;
+    typedef CTYPE &reference;
+    typedef CONST_REFERENCE const_reference;
 
     vector();
     vector(const vector &other);
-    size_type capacity() const;
-    void reserve(size_type n) throw (std::length_error);
+
     %rename(isEmpty) empty;
     bool empty() const;
     void clear();
     %extend {
       %fragment("SWIG_VectorSize");
-      vector(jint count) throw (std::out_of_range) {
-        if (count < 0)
-          throw std::out_of_range("vector count must be positive");
-        return new std::vector< CTYPE >(static_cast<std::vector< CTYPE >::size_type>(count));
-      }
 
       vector(jint count, const CTYPE &value) throw (std::out_of_range) {
         if (count < 0)
@@ -105,18 +111,28 @@ SWIGINTERN jint SWIG_VectorSize(size_t size) {
         return new std::vector< CTYPE >(static_cast<std::vector< CTYPE >::size_type>(count), value);
       }
 
+      jint doCapacity() throw (std::out_of_range) {
+        return SWIG_VectorSize(self->capacity());
+      }
+
+      void doReserve(jint n) throw (std::length_error, std::out_of_range) {
+        if (n < 0)
+          throw std::out_of_range("vector reserve size must be positive");
+        self->reserve(n);
+      }
+
       jint doSize() const throw (std::out_of_range) {
         return SWIG_VectorSize(self->size());
       }
 
-      void doAdd(const value_type& value) {
-        self->push_back(value);
+      void doAdd(const value_type& x) {
+        self->push_back(x);
       }
 
-      void doAdd(jint index, const value_type& value) throw (std::out_of_range) {
+      void doAdd(jint index, const value_type& x) throw (std::out_of_range) {
         jint size = static_cast<jint>(self->size());
         if (0 <= index && index <= size) {
-          self->insert(self->begin() + index, value);
+          self->insert(self->begin() + index, x);
         } else {
           throw std::out_of_range("vector index out of range");
         }
@@ -133,7 +149,7 @@ SWIGINTERN jint SWIG_VectorSize(size_t size) {
         }
       }
 
-      CREF_TYPE doGet(jint index) throw (std::out_of_range) {
+      CONST_REFERENCE doGet(jint index) throw (std::out_of_range) {
         jint size = static_cast<jint>(self->size());
         if (index >= 0 && index < size)
           return (*self)[index];
@@ -141,11 +157,11 @@ SWIGINTERN jint SWIG_VectorSize(size_t size) {
           throw std::out_of_range("vector index out of range");
       }
 
-      value_type doSet(jint index, const value_type& value) throw (std::out_of_range) {
+      value_type doSet(jint index, const value_type& val) throw (std::out_of_range) {
         jint size = static_cast<jint>(self->size());
         if (index >= 0 && index < size) {
           CTYPE const old_value = (*self)[index];
-          (*self)[index] = value;
+          (*self)[index] = val;
           return old_value;
         }
         else
@@ -163,6 +179,8 @@ SWIGINTERN jint SWIG_VectorSize(size_t size) {
     }
 %enddef
 
+%javamethodmodifiers std::vector::doCapacity    "private";
+%javamethodmodifiers std::vector::doReserve     "private";
 %javamethodmodifiers std::vector::doSize        "private";
 %javamethodmodifiers std::vector::doAdd         "private";
 %javamethodmodifiers std::vector::doGet         "private";
@@ -173,7 +191,7 @@ SWIGINTERN jint SWIG_VectorSize(size_t size) {
 namespace std {
 
     template<class T> class vector {
-        SWIG_STD_VECTOR_MINIMUM_INTERNAL(T, const T&)
+        SWIG_STD_VECTOR_MINIMUM_INTERNAL(T, const value_type&)
     };
 
     // bool specialization
@@ -185,4 +203,3 @@ namespace std {
 %define specialize_std_vector(T)
 #warning "specialize_std_vector - specialization for type T no longer needed"
 %enddef
-

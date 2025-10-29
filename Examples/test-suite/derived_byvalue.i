@@ -1,5 +1,9 @@
 %module derived_byvalue
 
+#ifdef SWIGOCAML
+%warnfilter(SWIGWARN_PARSE_KEYWORD) method;
+#endif
+
 %inline %{
 
 struct Foo {
@@ -79,7 +83,7 @@ Hash {
   and by checking the typemaps.
   The typemap code also calls SwigType_remember(), if your typemaps
   defined an object type, it will be added into the SwigType table.
-  its normally a 
+  it's normally a
     SWIG_ConvertPtr(....$descriptor...)
   when it should have been a $&descriptor or $*descriptor
     

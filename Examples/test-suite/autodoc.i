@@ -1,10 +1,12 @@
 %module(docstring="hello.") autodoc
 
+%warnfilter(SWIGWARN_PARSE_KEYWORD) inout;
+
 %feature("autodoc");
 
 // special typemap and its docs
-%typemap(in) (int c, int d) "$1 = 0; $2 = 0;";
-%typemap(doc,name="hello",type="Tuple") (int c, int d) "hello: int tuple[2]";
+%typemap(in) (int c, int d) "$1 = 0; $2 = 0;"
+%typemap(doc,name="hello",type="Tuple") (int c, int d) "hello: int tuple[2]"
 
 // testing for different documentation levels
 %feature("autodoc","0") A::func0; // names
@@ -67,13 +69,17 @@
 %typemap(doc) (int c, int d);
 
 // docs for some parameters
-%typemap(doc) int a "a: special comment for parameter a";
-%typemap(doc) int b "b: another special comment for parameter b";
+%typemap(doc) int a "a: special comment for parameter a"
+%typemap(doc) int b "b: another special comment for parameter b"
 
 %feature("autodoc","0") C::C(int a, int b, Hola h); // names
 %feature("autodoc","1") D::D(int a, int b, Hola h); // names + types
 %feature("autodoc","2") E::E(int a, int b, Hola h); // extended
 %feature("autodoc","3") F::F(int a, int b, Hola h); // extended + types
+%feature("autodoc","0") C::~C(); // names
+%feature("autodoc","1") D::~D(); // names + types
+%feature("autodoc","2") E::~E(); // extended
+%feature("autodoc","3") F::~F(); // extended + types
 
 %inline {
   
@@ -147,4 +153,42 @@ bool is_python_builtin() { return true; }
 #else
 bool is_python_builtin() { return false; }
 #endif
+%}
+
+// Autodoc language keywords
+%feature(autodoc,1) process;
+%feature(autodoc,1) process2;
+%feature("compactdefaultargs") process;
+%feature("compactdefaultargs") process2;
+%inline %{
+int process(int from, int in, int var) { return from; }
+int process2(int from = 0, int _in = 1, int var = 2) { return from; }
+%}
+
+%feature(autodoc,1) process3;
+%feature(autodoc,1) process4;
+%feature("kwargs") process3;
+%feature("kwargs") process4;
+%inline %{
+int process3(int from, int _in, int var) { return from; }
+int process4(int from = 0, int _in = 1, int var = 2) { return from; }
+%}
+
+// Autodoc for methods with default arguments not directly representable in
+// target language.
+%feature(autodoc,0) process_complex_defval;
+%feature("compactdefaultargs") process_complex_defval;
+%inline %{
+const int PROCESS_DEFAULT_VALUE = 17;
+typedef long int some_type;
+int process_complex_defval(int val = PROCESS_DEFAULT_VALUE, int factor = some_type(-1)) { return val*factor; }
+%}
+
+// Test for empty docstring, which should be ignored.
+%feature("docstring") ""
+
+%inline %{
+struct a_structure{
+  char my_array[1];
+};
 %}

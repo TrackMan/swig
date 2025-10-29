@@ -1,6 +1,11 @@
 %module(directors="1") director_basic
 
+#ifdef SWIGOCAML
+%warnfilter(SWIGWARN_PARSE_KEYWORD) method;
+#endif
+
 %warnfilter(SWIGWARN_TYPEMAP_THREAD_UNSAFE,SWIGWARN_TYPEMAP_DIRECTOROUT_PTR) MyClass::pmethod;
+%warnfilter(SWIGWARN_TYPEMAP_DIRECTOROUT_PTR) ConstPtrClass::getConstPtr;
 
  %{
  #include <string>
@@ -44,7 +49,7 @@
  %inline %{
 
  struct A{
-     A(std::complex<int> i, double d=0.0) {}
+     A(std::complex<double> i, double d=0.0) {}
      A(int i, bool j=false) {}
      virtual ~A() {}
 
@@ -55,7 +60,7 @@
  namespace hi  {
 
    struct A1 : public A {
-     A1(std::complex<int> i, double d=0.0) : A(i, d) {}
+     A1(std::complex<double> i, double d=0.0) : A(i, d) {}
      A1(int i, bool j=false) : A(i, j) {}
 
      virtual int ff(int i = 0) {return i;}  
@@ -65,6 +70,15 @@
 
  %}
 
+ %typemap(cscode) MyClass %{
+   // low level implementation check for checking MyOverriddenClass
+   public void testSwigDerivedClassHasMethod() {
+     if (SwigDerivedClassHasMethod("nonVirtual", swigMethodTypes3))
+       throw new global::System.Exception("SwigDerivedClassHasMethod failed checking a non-overriding non-virtual method (nonVirtual)");
+     if (SwigDerivedClassHasMethod("nonOverride", swigMethodTypes4))
+       throw new global::System.Exception("SwigDerivedClassHasMethod failed checking a non-overriding method (nonOverride)");
+   }
+ %}
 
  %feature("director") MyClass;
 
@@ -121,6 +135,29 @@ public:
   static Bar * call_pmethod(MyClass *myclass, Bar *b) {
     return myclass->pmethod(b);
   }
+
+  virtual int nonVirtual()
+  {
+    return 100;
+  }
+
+  virtual int nonOverride()
+  {
+    return 101;
+  }
+
+  static int call_nonVirtual(MyClass *myclass)
+  {
+    return myclass->nonVirtual();
+  }
+
+  static int call_nonOverride(MyClass *myclass)
+  {
+    return myclass->nonOverride();
+  }
+
+  // Collisions with generated method names
+  virtual void Connect() { }
 };
 
 template<class T>
@@ -139,7 +176,19 @@ public:
   }
   
 };
-
-%}
+ %}
 
 %template(MyClassT_i) MyClassT<int>;
+
+ %feature("director") ConstPtrClass;
+
+ %inline %{
+
+class ConstPtrClass {
+public:
+  virtual ~ConstPtrClass() {}
+  virtual int *const getConstPtr() = 0;
+};
+
+ %}
+

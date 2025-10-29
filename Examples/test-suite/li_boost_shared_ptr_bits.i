@@ -1,7 +1,11 @@
 %module li_boost_shared_ptr_bits
 
-#if defined(SWIGJAVA) || defined(SWIGCSHARP) || defined(SWIGPYTHON) || defined(SWIGD) || defined(SWIGOCTAVE) || defined(SWIGRUBY)
+#if defined(SWIGC) || defined(SWIGJAVA) || defined(SWIGCSHARP) || defined(SWIGPYTHON) || defined(SWIGD) || defined(SWIGOCTAVE) || defined(SWIGRUBY)
 #define SHARED_PTR_WRAPPERS_IMPLEMENTED
+#endif
+
+#ifdef SWIGOCAML
+%warnfilter(SWIGWARN_PARSE_KEYWORD) val;
 #endif
 
 #if defined(SHARED_PTR_WRAPPERS_IMPLEMENTED)

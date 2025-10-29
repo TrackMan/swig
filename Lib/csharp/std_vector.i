@@ -13,18 +13,13 @@
  *
  *   SWIG_STD_VECTOR_ENHANCED(SomeNamespace::Klass)
  *   %template(VectKlass) std::vector<SomeNamespace::Klass>;
- *
- * Warning: heavy macro usage in this file. Use swig -E to get a sane view on the real file contents!
  * ----------------------------------------------------------------------------- */
-
-// Warning: Use the typemaps here in the expectation that the macros they are in will change name.
-
 
 %include <std_common.i>
 
 // MACRO for use within the std::vector class body
 %define SWIG_STD_VECTOR_MINIMUM_INTERNAL(CSINTERFACE, CONST_REFERENCE, CTYPE...)
-%typemap(csinterfaces) std::vector< CTYPE > "global::System.IDisposable, global::System.Collections.IEnumerable\n    , global::System.Collections.Generic.CSINTERFACE<$typemap(cstype, CTYPE)>\n";
+%typemap(csinterfaces) std::vector< CTYPE > "global::System.IDisposable, global::System.Collections.IEnumerable, global::System.Collections.Generic.CSINTERFACE<$typemap(cstype, CTYPE)>\n"
 %proxycode %{
   public $csclassname(global::System.Collections.IEnumerable c) : this() {
     if (c == null)
@@ -68,9 +63,15 @@
       return (int)capacity();
     }
     set {
-      if (value < size())
+      if (value < 0 || ($typemap(cstype, size_t))value < size())
         throw new global::System.ArgumentOutOfRangeException("Capacity");
       reserve(($typemap(cstype, size_t))value);
+    }
+  }
+
+  public bool IsEmpty {
+    get {
+      return empty();
     }
   }
 
@@ -201,19 +202,27 @@
 
   public:
     typedef size_t size_type;
+    typedef ptrdiff_t difference_type;
     typedef CTYPE value_type;
+    typedef value_type* pointer;
+    typedef const value_type* const_pointer;
+    typedef value_type& reference;
     typedef CONST_REFERENCE const_reference;
+
+    vector();
+    vector(const vector &other);
+
     %rename(Clear) clear;
     void clear();
     %rename(Add) push_back;
     void push_back(CTYPE const& x);
     size_type size() const;
+    bool empty() const;
     size_type capacity() const;
     void reserve(size_type n);
     %newobject GetRange(int index, int count);
     %newobject Repeat(CTYPE const& value, int count);
-    vector();
-    vector(const vector &other);
+
     %extend {
       vector(int capacity) throw (std::out_of_range) {
         std::vector< CTYPE >* pv = 0;
@@ -237,9 +246,9 @@
         else
           throw std::out_of_range("index");
       }
-      void setitem(int index, CTYPE const& value) throw (std::out_of_range) {
+      void setitem(int index, CTYPE const& val) throw (std::out_of_range) {
         if (index>=0 && index<(int)$self->size())
-          (*$self)[index] = value;
+          (*$self)[index] = val;
         else
           throw std::out_of_range("index");
       }
@@ -349,20 +358,10 @@
 %define SWIG_STD_VECTOR_ENHANCED(CTYPE...)
 namespace std {
   template<> class vector< CTYPE > {
-    SWIG_STD_VECTOR_MINIMUM_INTERNAL(IList, %arg(CTYPE const&), %arg(CTYPE))
+    SWIG_STD_VECTOR_MINIMUM_INTERNAL(IList, const value_type&, %arg(CTYPE))
     SWIG_STD_VECTOR_EXTRA_OP_EQUALS_EQUALS(CTYPE)
   };
 }
-%enddef
-
-// Legacy macros
-%define SWIG_STD_VECTOR_SPECIALIZE(CSTYPE, CTYPE...)
-#warning SWIG_STD_VECTOR_SPECIALIZE macro deprecated, please see csharp/std_vector.i and switch to SWIG_STD_VECTOR_ENHANCED
-SWIG_STD_VECTOR_ENHANCED(CTYPE)
-%enddef
-
-%define SWIG_STD_VECTOR_SPECIALIZE_MINIMUM(CSTYPE, CTYPE...)
-#warning SWIG_STD_VECTOR_SPECIALIZE_MINIMUM macro deprecated, it is no longer required
 %enddef
 
 %{
@@ -371,6 +370,7 @@ SWIG_STD_VECTOR_ENHANCED(CTYPE)
 #include <stdexcept>
 %}
 
+%csmethodmodifiers std::vector::empty "private"
 %csmethodmodifiers std::vector::getitemcopy "private"
 %csmethodmodifiers std::vector::getitem "private"
 %csmethodmodifiers std::vector::setitem "private"
@@ -382,11 +382,11 @@ namespace std {
   // primary (unspecialized) class template for std::vector
   // does not require operator== to be defined
   template<class T> class vector {
-    SWIG_STD_VECTOR_MINIMUM_INTERNAL(IEnumerable, T const&, T)
+    SWIG_STD_VECTOR_MINIMUM_INTERNAL(IEnumerable, const value_type&, T)
   };
   // specialization for pointers
   template<class T> class vector<T *> {
-    SWIG_STD_VECTOR_MINIMUM_INTERNAL(IList, T *const&, T *)
+    SWIG_STD_VECTOR_MINIMUM_INTERNAL(IList, const value_type&, T *)
     SWIG_STD_VECTOR_EXTRA_OP_EQUALS_EQUALS(T *)
   };
   // bool is specialized in the C++ standard - const_reference in particular
@@ -413,4 +413,3 @@ SWIG_STD_VECTOR_ENHANCED(float)
 SWIG_STD_VECTOR_ENHANCED(double)
 SWIG_STD_VECTOR_ENHANCED(std::string) // also requires a %include <std_string.i>
 SWIG_STD_VECTOR_ENHANCED(std::wstring) // also requires a %include <std_wstring.i>
-

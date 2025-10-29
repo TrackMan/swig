@@ -3,9 +3,9 @@
 
 %insert("header") "swiglabels.swg"
 
-%insert("header") "swigerrors.swg"
 %insert("init") "swiginit.swg"
 %insert("runtime") "swigrun.swg"
+%insert("runtime") "swigerrors.swg"
 %insert("runtime") "rrun.swg"
 
 %init %{
@@ -26,9 +26,13 @@ SWIGEXPORT void SWIG_init(void) {
    assign(name, _obj);
 %end_block %enddef
 
-%define %raise(obj,type,desc) 
-return R_NilValue;
-%enddef
+%runtime %{
+SWIGINTERN void SWIG_R_Raise(SEXP obj, const char *msg) {
+  Rf_error("%s", Rf_isString(obj) ? CHAR(Rf_asChar(obj)) : msg);
+}
+%}
+
+#define %raise(OBJ, TYPE, DESC) SWIG_R_Raise(OBJ, "C/C++ exception of type " TYPE); return R_NilValue
 
 %insert("sinit") "srun.swg"
 
@@ -53,7 +57,7 @@ SWIG_InitializeModule(0);
       assert(all(sapply($input, class) == "$R_class"));
   %}
 
-%typemap(out) void "";
+%typemap(out) void ""
 
 %typemap(in) int *, int[ANY],
 	     signed int *, signed int[ANY],
@@ -192,6 +196,11 @@ unsigned char *OUTPUT
     free($1);
 }
 
+%typemap(in) const enum SWIGTYPE & ($*1_ltype temp)
+%{ temp = ($*1_ltype)INTEGER($input)[0];
+   $1 = &temp; %}
+
+%typemap(out) const enum SWIGTYPE & %{ $result = Rf_ScalarInteger((int)*$1); %}
 
 %typemap(memberin) char[] %{
 if ($input) strcpy($1, $input);

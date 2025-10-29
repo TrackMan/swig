@@ -7,18 +7,29 @@
 %module(directors="1") director_thread
 #endif
 
+#ifdef SWIGOCAML
+%warnfilter(SWIGWARN_PARSE_KEYWORD) val;
+#endif
+
+%begin %{
+#define SWIG_JAVA_USE_THREAD_NAME
+//#define DEBUG_DIRECTOR_THREAD_NAME
+%}
+
 %{
 #ifdef _WIN32
 #include <windows.h>
 #include <process.h>
-#include <stdio.h>
 #else
 #include <pthread.h>
+#include <errno.h>
+#include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
 #endif
 
 #include <assert.h>
+#include <stdio.h>
 #include "swig_examples_lock.h"
 
 class Foo;  
@@ -31,15 +42,15 @@ extern "C" {
   static pthread_t thread;
 #endif
 
-  static int thread_terminate = 0;
+  static int swig_thread_terminate = 0;
   static SwigExamples::CriticalSection critical_section;
   int get_thread_terminate() {
     SwigExamples::Lock lock(critical_section);
-    return thread_terminate;
+    return swig_thread_terminate;
   }
   void set_thread_terminate(int value) {
     SwigExamples::Lock lock(critical_section);
-    thread_terminate = value;
+    swig_thread_terminate = value;
   }
 }
 %}
@@ -62,7 +73,7 @@ extern "C" {
     Foo() : val(0) {
     }
     
-    virtual ~Foo()  {
+    virtual ~Foo() {
     }
 
     void stop() {
@@ -86,13 +97,40 @@ extern "C" {
 %#else
       int create = pthread_create(&thread,NULL,working,this);
       if (create != 0) {
-        fprintf(stderr, "pthread_create failed in run()\n");
+        errno = create;
+        perror("pthread_create in run()");
         assert(0);
       }
 %#endif
       MilliSecondSleep(500);
     }
-    
+
+    void setThreadName() {
+%#ifdef _WIN32
+%#else
+
+%#ifdef __APPLE__
+      int setname = pthread_setname_np("MyThreadName");
+%#else
+      int setname = pthread_setname_np(pthread_self(), "MyThreadName");
+%#endif
+
+      if (setname != 0) {
+        errno = setname;
+        perror("calling pthread_setname_np in setThreadName()");
+        assert(0);
+      }
+%#endif
+    }
+
+    static bool namedThread() {
+%#ifdef _WIN32
+      return false;
+%#else
+      return true;
+%#endif
+    }
+
     virtual void do_foo() {
       val += 1;
     }
@@ -108,6 +146,7 @@ extern "C" {
 #endif
   {
     Foo* f = static_cast<Foo*>(t);
+    f->setThreadName();
     while (!get_thread_terminate()) {
       MilliSecondSleep(50);
       f->do_foo();

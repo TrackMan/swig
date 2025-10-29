@@ -32,7 +32,7 @@
 %}
 %typemap(out, fragment="SWIG_intrusive_deleter") CONST TYPE %{
   //plain value(out)
-  $1_ltype* resultp = new $1_ltype(($1_ltype &)$1);
+  $1_ltype* resultp = new $1_ltype($1);
   intrusive_ptr_add_ref(resultp);
   *(SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > **)&$result = new SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE >(resultp, SWIG_intrusive_deleter< CONST TYPE >());
 %}
@@ -314,7 +314,7 @@
   }
 %}
 
-%typemap(csdestruct, methodname="Dispose", methodmodifiers="public") TYPE {
+%typemap(csdisposing, methodname="Dispose", methodmodifiers="protected", parameters="bool disposing") TYPE {
     lock(this) {
       if (swigCPtr.Handle != global::System.IntPtr.Zero) {
         if (swigCMemOwnBase) {
@@ -323,11 +323,10 @@
         }
         swigCPtr = new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero);
       }
-      global::System.GC.SuppressFinalize(this);
     }
   }
 
-%typemap(csdestruct_derived, methodname="Dispose", methodmodifiers="public") TYPE {
+%typemap(csdisposing_derived, methodname="Dispose", methodmodifiers="protected", parameters="bool disposing") TYPE {
     lock(this) {
       if (swigCPtr.Handle != global::System.IntPtr.Zero) {
         if (swigCMemOwnDerived) {
@@ -336,8 +335,7 @@
         }
         swigCPtr = new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero);
       }
-      global::System.GC.SuppressFinalize(this);
-      base.Dispose();
+      base.Dispose(disposing);
     }
   }
 
@@ -374,7 +372,7 @@
   }
   $1 = *argp; %}
 %typemap(out) CONST TYPE
-%{ *(SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > **)&$result = new SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE >(new $1_ltype(($1_ltype &)$1)); %}
+%{ *(SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > **)&$result = new SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE >(new $1_ltype($1)); %}
 
 // plain pointer
 %typemap(in) CONST TYPE * (SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > *smartarg = 0) %{
@@ -473,7 +471,7 @@
   }
 %}
 
-%typemap(csdestruct, methodname="Dispose", methodmodifiers="public") TYPE {
+%typemap(csdisposing, methodname="Dispose", methodmodifiers="protected", parameters="bool disposing") TYPE {
     lock(this) {
       if (swigCPtr.Handle != global::System.IntPtr.Zero) {
         if (swigCMemOwnBase) {
@@ -482,11 +480,10 @@
         }
         swigCPtr = new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero);
       }
-      global::System.GC.SuppressFinalize(this);
     }
   }
 
-%typemap(csdestruct_derived, methodname="Dispose", methodmodifiers="public") TYPE {
+%typemap(csdisposing_derived, methodname="Dispose", methodmodifiers="protected", parameters="bool disposing") TYPE {
     lock(this) {
       if (swigCPtr.Handle != global::System.IntPtr.Zero) {
         if (swigCMemOwnDerived) {
@@ -495,8 +492,7 @@
         }
         swigCPtr = new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero);
       }
-      global::System.GC.SuppressFinalize(this);
-      base.Dispose();
+      base.Dispose(disposing);
     }
   }
 

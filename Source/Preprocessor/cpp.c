@@ -4,14 +4,14 @@
  * terms also apply to certain portions of SWIG. The full details of the SWIG
  * license and copyrights can be found in the LICENSE and COPYRIGHT files
  * included with the SWIG source code as distributed by the SWIG developers
- * and at http://www.swig.org/legal.html.
+ * and at https://www.swig.org/legal.html.
  *
  * cpp.c
  *
  * An implementation of a C preprocessor plus some support for additional
  * SWIG directives.
  *
- * - SWIG directives such as %include, %extern, and %import are handled
+ * - SWIG directives such as %include and %import are handled
  * - A new macro %define ... %enddef can be used for multiline macros
  * - No preprocessing is performed in %{ ... %} blocks
  * - Lines beginning with %# are stripped down to #... and passed through.
@@ -42,7 +42,7 @@ static const String * macro_start_file = 0;
 /* Test a character to see if it valid in an identifier (after the first letter) */
 #define isidchar(c) ((isalnum(c)) || (c == '_') || (c == '$'))
 
-static DOH *Preprocessor_replace(DOH *);
+static DOH *Preprocessor_replace(DOH *, DOH *);
 
 /* Skip whitespace */
 static void skip_whitespace(String *s, String *out) {
@@ -60,6 +60,29 @@ static void skip_whitespace(String *s, String *out) {
 static int skip_tochar(String *s, int ch, String *out) {
   int c;
   while ((c = Getc(s)) != EOF) {
+    if (out)
+      Putc(c, out);
+    if (c == ch)
+      break;
+    if (c == '\\') {
+      c = Getc(s);
+      if ((c != EOF) && (out))
+	Putc(c, out);
+    }
+  }
+  if (c == EOF)
+    return -1;
+  return 0;
+}
+
+/* Skip to a specified character or the end of the line */
+static int skip_tochar_or_eol(String *s, int ch, String *out) {
+  int c;
+  while ((c = Getc(s)) != EOF) {
+    if (c == '\n') {
+	Ungetc(c, s);
+	break;
+    }
     if (out)
       Putc(c, out);
     if (c == ch)
@@ -109,6 +132,19 @@ static String *cpp_include(const_String_or_char_ptr fn, int sysfile) {
   return s;
 }
 
+static int is_digits(const String *str) {
+  const char *s = Char(str);
+  int isdigits = (*s != 0);
+  while (*s) {
+    if (!isdigit((int)*s)) {
+      isdigits = 0;
+      break;
+    }
+    s++;
+  }
+  return isdigits;
+}
+
 List *Preprocessor_depend(void) {
   return dependencies;
 }
@@ -144,7 +180,6 @@ static String *kpp_ddefine = 0;
 static String *kpp_dinclude = 0;
 static String *kpp_dimport = 0;
 static String *kpp_dbeginfile = 0;
-static String *kpp_dextern = 0;
 
 static String *kpp_LINE = 0;
 static String *kpp_FILE = 0;
@@ -181,7 +216,6 @@ void Preprocessor_init(void) {
   kpp_dinclude = NewString("%include");
   kpp_dimport = NewString("%import");
   kpp_dbeginfile = NewString("%beginfile");
-  kpp_dextern = NewString("%extern");
   kpp_ddefine = NewString("%define");
   kpp_dline = NewString("%line");
 
@@ -230,7 +264,6 @@ void Preprocessor_delete(void) {
   Delete(kpp_dinclude);
   Delete(kpp_dimport);
   Delete(kpp_dbeginfile);
-  Delete(kpp_dextern);
   Delete(kpp_ddefine);
   Delete(kpp_dline);
 
@@ -278,31 +311,25 @@ void Preprocessor_error_as_warning(int a) {
  * ----------------------------------------------------------------------------- */
 
 
-String *Macro_vararg_name(const_String_or_char_ptr str, const_String_or_char_ptr line) {
-  String *argname;
+static String *Macro_vararg_name(const_String_or_char_ptr str, const_String_or_char_ptr line) {
   String *varargname;
   char *s, *dots;
 
-  argname = Copy(str);
-  s = Char(argname);
+  s = Char(str);
   dots = strchr(s, '.');
   if (!dots) {
-    Delete(argname);
     return NULL;
   }
 
   if (strcmp(dots, "...") != 0) {
     Swig_error(Getfile(line), Getline(line), "Illegal macro argument name '%s'\n", str);
-    Delete(argname);
     return NULL;
   }
   if (dots == s) {
     varargname = NewString("__VA_ARGS__");
   } else {
-    *dots = '\0';
-    varargname = NewString(s);
+    varargname = NewStringWithSize(s, (int)(dots - s));
   }
-  Delete(argname);
   return varargname;
 }
 
@@ -487,18 +514,18 @@ Hash *Preprocessor_define(const_String_or_char_ptr _str, int swigmacro) {
 
   /* Get rid of whitespace surrounding # */
   /*  Replace(macrovalue,"#","\001",DOH_REPLACE_NOQUOTE); */
-  while (strstr(Char(macrovalue), "\001 ")) {
-    Replace(macrovalue, "\001 ", "\001", DOH_REPLACE_ANY);
-  }
-  while (strstr(Char(macrovalue), " \001")) {
-    Replace(macrovalue, " \001", "\001", DOH_REPLACE_ANY);
-  }
+  while (Replace(macrovalue, "\001 ", "\001", DOH_REPLACE_ANY) > 0) { }
+  while (Replace(macrovalue, " \001", "\001", DOH_REPLACE_ANY) > 0) { }
   /* Replace '##' with a special token */
   Replace(macrovalue, "\001\001", "\002", DOH_REPLACE_ANY);
   /* Replace '#@' with a special token */
   Replace(macrovalue, "\001@", "\004", DOH_REPLACE_ANY);
   /* Replace '##@' with a special token */
   Replace(macrovalue, "\002@", "\005", DOH_REPLACE_ANY);
+  if (varargs) {
+    /* Replace '__VA_OPT__' with a special token */
+    Replace(macrovalue, "__VA_OPT__", "\006", DOH_REPLACE_ID|DOH_REPLACE_ANY);
+  }
 
   /* Go create the macro */
   macro = NewHash();
@@ -558,6 +585,18 @@ void Preprocessor_undef(const_String_or_char_ptr str) {
 }
 
 /* -----------------------------------------------------------------------------
+ * Preprocessor_defined()
+ *
+ * Check if a macro is defined.
+ * ----------------------------------------------------------------------------- */
+int Preprocessor_defined(const_String_or_char_ptr str) {
+  Hash *symbols;
+  assert(cpp);
+  symbols = Getattr(cpp, kpp_symbols);
+  return Getattr(symbols, str) != NULL;
+}
+
+/* -----------------------------------------------------------------------------
  * find_args()
  *
  * Isolates macro arguments and returns them in a list.   For each argument,
@@ -614,9 +653,11 @@ static List *find_args(String *s, int ismacro, String *macro_name) {
         if (c == '*') {
           while ((c = Getc(s)) != EOF) {
             if (c == '*') {
+another_star:
               c = Getc(s);
               if (c == '/' || c == EOF)
                 break;
+	      if (c == '*') goto another_star;
             }
           }
           c = Getc(s);
@@ -694,7 +735,7 @@ static String *get_filename(String *str, int *sysfile) {
       Putc(c, fn);
     if (isspace(c))
       Ungetc(c, str);
-    preprocessed_str = Preprocessor_replace(fn);
+    preprocessed_str = Preprocessor_replace(fn, NULL);
     Seek(preprocessed_str, 0, SEEK_SET);
     Delete(fn);
 
@@ -728,14 +769,35 @@ static String *get_options(String *str) {
     opt = NewString("(");
     while (((c = Getc(str)) != EOF)) {
       Putc(c, opt);
-      if (c == ')') {
-	level--;
-	if (!level)
-	  return opt;
+      switch (c) {
+	case ')':
+	  level--;
+	  if (!level)
+	    return opt;
+	  break;
+	case '(':
+	  level++;
+	  break;
+	case '"':
+	  /* Skip over quoted strings */
+	  while (1) {
+	    c = Getc(str);
+	    if (c == EOF)
+	      goto bad;
+	    Putc(c, opt);
+	    if (c == '"')
+	      break;
+	    if (c == '\\') {
+	      c = Getc(str);
+	      if (c == EOF)
+		goto bad;
+	      Putc(c, opt);
+	    }
+	  }
+	  break;
       }
-      if (c == '(')
-	level++;
     }
+bad:
     Delete(opt);
     return 0;
   } else {
@@ -751,7 +813,7 @@ static String *get_options(String *str) {
  * of error occurred.
  * name - name of the macro
  * args - arguments passed to the macro
- * line_file - only used for line/file name when reporting errors
+ * line_file - global context, used for line/file name when reporting errors
  * ----------------------------------------------------------------------------- */
 
 static String *expand_macro(String *name, List *args, String *line_file) {
@@ -869,9 +931,9 @@ static String *expand_macro(String *name, List *args, String *line_file) {
       DOH *arg, *aname;
       String *reparg;
       arg = Getitem(args, i);	/* Get an argument value */
-      reparg = Preprocessor_replace(arg);
+      reparg = Preprocessor_replace(arg, NULL);
       aname = Getitem(margs, i);	/* Get macro argument name */
-      if (strstr(Char(ns), "\001")) {
+      if (strchr(Char(ns), '\001')) {
 	/* Try to replace a quoted version of the argument */
 	Clear(temp);
 	Clear(tempa);
@@ -879,13 +941,65 @@ static String *expand_macro(String *name, List *args, String *line_file) {
 	Printf(tempa, "\"%s\"", arg);
 	Replace(ns, temp, tempa, DOH_REPLACE_ID_END);
       }
-      if (strstr(Char(ns), "\002")) {
+      if (isvarargs && i == l - 1) {
+	char *s = Char(ns);
+	char *a = s;
+	while ((a = strchr(a, '\006')) != NULL) {
+	  *a = ' ';
+	  while (isspace((unsigned char)*++a)) { }
+	  if (*a == '(') {
+	    char *e = a;
+	    int depth = 1;
+	    while (*++e) {
+	      if (*e == ')') {
+		if (--depth == 0) break;
+	      } else if (*e == '(') {
+		++depth;
+	      }
+	    }
+	    if (*e) {
+	      if (Len(arg) == 0) {
+		// Empty varargs so replace ( and ) and everything between with
+		// spaces.
+		memset(a, ' ', e - a + 1);
+	      } else {
+		// Non-empty varargs so replace ( and ) with spaces.
+		*a = ' ';
+		*e = ' ';
+	      }
+	    }
+	    a = e + 1;
+	  }
+	}
+      }
+
+      if (strchr(Char(ns), '\002')) {
 	/* Look for concatenation tokens */
 	Clear(temp);
 	Clear(tempa);
 	Printf(temp, "\002%s", aname);
 	Append(tempa, "\002\003");
 	Replace(ns, temp, tempa, DOH_REPLACE_ID_END);
+	if (isvarargs && i == l - 1 && Len(arg) == 0) {
+	  // ## followed by a zero length varargs macro argument - if preceded
+	  // by a comma (possibly with whitespace in between) we nuke the
+	  // comma.
+	  char *s = Char(ns);
+	  char *a = s + 1;
+	  while ((a = strstr(a, "\002\003")) != NULL) {
+	    char *t = a;
+	    while (--t >= s) {
+	      if (!isspace((unsigned char)*t)) {
+		if (*t == ',') *t = ' ';
+		break;
+	      }
+	    }
+	    // Advance 3 since we're only interested in \002\003 when it could
+	    // be preceded by a comma.
+	    a += 3;
+	  }
+	}
+
 	Clear(temp);
 	Clear(tempa);
 	Printf(temp, "%s\002", aname);
@@ -903,7 +1017,7 @@ static String *expand_macro(String *name, List *args, String *line_file) {
 	Clear(temp);
 	Printf(temp, "`%s`", aname);
 	c = Char(arg);
-	if (*c == '\"') {
+	if (*c == '"') {
 	  rep = arg;
 	} else {
 	  Clear(tempa);
@@ -915,15 +1029,15 @@ static String *expand_macro(String *name, List *args, String *line_file) {
 
       /* Non-standard mangle expansions.  
          The #@Name is replaced by mangle_arg(Name). */
-      if (strstr(Char(ns), "\004")) {
-	String *marg = Swig_string_mangle(arg);
+      if (strchr(Char(ns), '\004')) {
+	String *marg = Swig_name_mangle_string(arg);
 	Clear(temp);
 	Printf(temp, "\004%s", aname);
 	Replace(ns, temp, marg, DOH_REPLACE_ID_END);
 	Delete(marg);
       }
-      if (strstr(Char(ns), "\005")) {
-	String *marg = Swig_string_mangle(arg);
+      if (strchr(Char(ns), '\005')) {
+	String *marg = Swig_name_mangle_string(arg);
 	Clear(temp);
 	Clear(tempa);
 	Printf(temp, "\005%s", aname);
@@ -932,36 +1046,6 @@ static String *expand_macro(String *name, List *args, String *line_file) {
 	Delete(marg);
       }
 
-      if (isvarargs && i == l - 1 && Len(arg) == 0) {
-	/* Zero length varargs macro argument.   We search for commas that might appear before and nuke them */
-	char *a, *s, *t, *name;
-	int namelen;
-	s = Char(ns);
-	name = Char(aname);
-	namelen = Len(aname);
-	a = strstr(s, name);
-	while (a) {
-	  char ca = a[namelen];
-	  if (!isidchar((int) ca)) {
-	    /* Matched the entire vararg name, not just a prefix */
-	    if (a > s) {
-	      t = a - 1;
-	      if (*t == '\002') {
-		t--;
-		while (t >= s) {
-		  if (isspace((int) *t))
-		    t--;
-		  else if (*t == ',') {
-		    *t = ' ';
-		  } else
-		    break;
-		}
-	      }
-	    }
-	  }
-	  a = strstr(a + namelen, name);
-	}
-      }
       /*      Replace(ns, aname, arg, DOH_REPLACE_ID); */
       Replace(ns, aname, reparg, DOH_REPLACE_ID);	/* Replace expanded args */
       Replace(ns, "\003", arg, DOH_REPLACE_ANY);	/* Replace unexpanded arg */
@@ -975,7 +1059,7 @@ static String *expand_macro(String *name, List *args, String *line_file) {
   /* Expand this macro even further */
   Setattr(macro, kpp_expanded, "1");
 
-  e = Preprocessor_replace(ns);
+  e = Preprocessor_replace(ns, line_file);
 
   Delattr(macro, kpp_expanded);
   Delete(ns);
@@ -1013,7 +1097,7 @@ static String *expand_macro(String *name, List *args, String *line_file) {
 }
 
 /* -----------------------------------------------------------------------------
- * DOH *Preprocessor_replace(DOH *s)
+ * DOH *Preprocessor_replace(DOH *s, DOH *line_file)
  *
  * Performs a macro substitution on a string s.  Returns a new string with
  * substitutions applied.   This function works by walking down s and looking
@@ -1023,7 +1107,7 @@ static String *expand_macro(String *name, List *args, String *line_file) {
 
 /* #define SWIG_PUT_BUFF  */
 
-static DOH *Preprocessor_replace(DOH *s) {
+static DOH *Preprocessor_replace(DOH *s, DOH *line_file) {
   DOH *ns, *symbols, *m;
   int c, i, state = 0;
   String *id = NewStringEmpty();
@@ -1157,14 +1241,36 @@ static DOH *Preprocessor_replace(DOH *s) {
 	} else if (Equal(kpp_hash_if, id) || Equal(kpp_hash_elif, id)) {
 	  expand_defined_operator = 1;
 	  Append(ns, id);
-	  /*
-	} else if (Equal("%#if", id) || Equal("%#ifdef", id)) {
-	  Swig_warning(998, Getfile(s), Getline(s), "Found: %s preprocessor directive.\n", id);
-	  Append(ns, id);
 	} else if (Equal("#ifdef", id) || Equal("#ifndef", id)) {
-	  Swig_warning(998, Getfile(s), Getline(s), "The %s preprocessor directive does not work in macros, try #if instead.\n", id);
-	  Append(ns, id);
-	  */
+	  /* Evaluate the defined-ness check and substitute `#if 0` or `#if 1`. */
+	  int allow = 0;
+	  skip_whitespace(s, 0);
+	  c = Getc(s);
+	  if (isidchar(c)) {
+	    DOH *arg = NewStringEmpty();
+	    Putc(c, arg);
+	    while (((c = Getc(s)) != EOF)) {
+	      if (!isidchar(c)) {
+		Ungetc(c, s);
+		break;
+	      }
+	      Putc(c, arg);
+	    }
+	    if (Equal("#ifdef", id)) {
+	      if (Getattr(symbols, arg)) allow = 1;
+	    } else {
+	      if (!Getattr(symbols, arg)) allow = 1;
+	    }
+	    Delete(arg);
+	  } else {
+	    Ungetc(c, s);
+	    Swig_error(Getfile(s), Getline(s), "Missing identifier for %s.\n", id);
+	  }
+	  if (allow) {
+	    Append(ns, "#if 1");
+	  } else {
+	    Append(ns, "#if 0");
+	  }
 	} else if ((m = Getattr(symbols, id))) {
 	  /* See if the macro is defined in the preprocessor symbol table */
 	  DOH *args = 0;
@@ -1246,14 +1352,31 @@ static DOH *Preprocessor_replace(DOH *s) {
       Replaceall(fn, "\\", "\\\\");
       Printf(ns, "\"%s\"", fn);
       Delete(fn);
-    } else if (Getattr(symbols, id)) {
-      DOH *e;
+    } else if ((m = Getattr(symbols, id))) {
       /* Yes.  There is a macro here */
+      /* If it expects arguments, they must come from `line_file` */
+      DOH *args = 0;
+      DOH *e;
+      int macro_additional_lines = 0;
       /* See if the macro expects arguments */
-      e = expand_macro(id, 0, s);
-      if (e)
+      if (Getattr(m, kpp_args) && line_file) {
+        /* Yep.  We need to go find the arguments and do a substitution */
+        int line = Getline(line_file);
+        args = find_args(line_file, 1, id);
+        macro_additional_lines = Getline(line_file) - line;
+        assert(macro_additional_lines >= 0);
+      } else {
+        args = 0;
+      }
+      e = expand_macro(id, args, s);
+      if (e) {
 	Append(ns, e);
+      }
+      while (macro_additional_lines--) {
+	Putc('\n', ns);
+      }
       Delete(e);
+      Delete(args);
     } else {
       Append(ns, id);
     }
@@ -1296,11 +1419,10 @@ static void addline(DOH *s1, DOH *s2, int allow) {
   if (allow) {
     Append(s1, s2);
   } else {
-    char *c = Char(s2);
-    while (*c) {
-      if (*c == '\n')
+    int len = Len(s2);
+    for (int i = 0; i < len; ++i) {
+      if (Char(s2)[i] == '\n')
 	Putc('\n', s1);
-      c++;
     }
   }
 }
@@ -1309,7 +1431,7 @@ static void add_chunk(DOH *ns, DOH *chunk, int allow) {
   DOH *echunk;
   Seek(chunk, 0, SEEK_SET);
   if (allow) {
-    echunk = Preprocessor_replace(chunk);
+    echunk = Preprocessor_replace(chunk, NULL);
     addline(ns, echunk, allow);
     Delete(echunk);
   } else {
@@ -1322,14 +1444,14 @@ static void add_chunk(DOH *ns, DOH *chunk, int allow) {
   push/pop_imported(): helper functions for defining and undefining
   SWIGIMPORTED (when %importing a file).
  */
-static void push_imported() {
+static void push_imported(void) {
   if (imported_depth == 0) {
     Preprocessor_define("SWIGIMPORTED 1", 0);
   }
   ++imported_depth;
 }
 
-static void pop_imported() {
+static void pop_imported(void) {
   --imported_depth;
   if (imported_depth == 0) {
     Preprocessor_undef("SWIGIMPORTED");
@@ -1398,8 +1520,9 @@ String *Preprocessor_parse(String *s) {
 	Ungetc(c, s);
       }
       break;
-    case 1:			/* Non-preprocessor directive */
+    case 1: {			/* Non-preprocessor directive */
       /* Look for SWIG directives */
+state1:
       if (c == '%') {
 	state = 100;
 	break;
@@ -1420,16 +1543,19 @@ String *Preprocessor_parse(String *s) {
       } else if (c == '/')
 	state = 30;		/* Comment */
       break;
+    }
 
     case 30:			/* Possibly a comment string of some sort */
       start_line = Getline(s);
-      Putc(c, chunk);
       if (c == '/')
 	state = 31;
       else if (c == '*')
 	state = 32;
-      else
+      else {
 	state = 1;
+	goto state1; /* Process this character the same as if it wasn't preceded by a `/`. */
+      }
+      Putc(c, chunk);
       break;
     case 31:
       Putc(c, chunk);
@@ -1484,7 +1610,7 @@ String *Preprocessor_parse(String *s) {
       Putc(c, id);
       break;
 
-    case 42:			/* Strip any leading space before preprocessor value */
+    case 42:			/* Strip any leading space after the preprocessor directive (before preprocessor value) */
       if (isspace(c)) {
 	if (c == '\n') {
 	  Ungetc(c, s);
@@ -1504,10 +1630,10 @@ String *Preprocessor_parse(String *s) {
 	state = 45;
       } else if (c == '\"') {
 	Putc(c, value);
-	skip_tochar(s, '\"', value);
+	skip_tochar_or_eol(s, '\"', value);
       } else if (c == '\'') {
 	Putc(c, value);
-	skip_tochar(s, '\'', value);
+	skip_tochar_or_eol(s, '\'', value);
       } else {
 	Putc(c, value);
 	if (c == '\\')
@@ -1580,7 +1706,7 @@ String *Preprocessor_parse(String *s) {
 	    copy_location(m, v);
 	    if (Len(v)) {
 	      Swig_error_silent(1);
-	      v1 = Preprocessor_replace(v);
+	      v1 = Preprocessor_replace(v, NULL);
 	      Swig_error_silent(0);
 	      /*              Printf(stdout,"checking '%s'\n", v1); */
 	      if (!checkpp_id(v1)) {
@@ -1662,7 +1788,7 @@ String *Preprocessor_parse(String *s) {
 	  int val;
 	  String *sval;
 	  expand_defined_operator = 1;
-	  sval = Preprocessor_replace(value);
+	  sval = Preprocessor_replace(value, NULL);
 	  start_level = level;
 	  Seek(sval, 0, SEEK_SET);
 	  /*      Printf(stdout,"Evaluating '%s'\n", sval); */
@@ -1673,7 +1799,7 @@ String *Preprocessor_parse(String *s) {
 	      Seek(value, 0, SEEK_SET);
 	      Swig_warning(WARN_PP_EVALUATION, Getfile(value), Getline(value), "Could not evaluate expression '%s'\n", value);
 	      if (msg)
-		Swig_warning(WARN_PP_EVALUATION, Getfile(value), Getline(value), "Error: '%s'\n", msg);
+		Swig_warning(WARN_PP_EVALUATION, Getfile(value), Getline(value), "%s\n", msg);
 	      allow = 0;
 	    } else {
 	      if (val == 0)
@@ -1698,7 +1824,7 @@ String *Preprocessor_parse(String *s) {
 	    int val;
 	    String *sval;
 	    expand_defined_operator = 1;
-	    sval = Preprocessor_replace(value);
+	    sval = Preprocessor_replace(value, NULL);
 	    Seek(sval, 0, SEEK_SET);
 	    if (Len(sval) > 0) {
 	      val = Preprocessor_expr(sval, &e);
@@ -1707,7 +1833,7 @@ String *Preprocessor_parse(String *s) {
 		Seek(value, 0, SEEK_SET);
 		Swig_warning(WARN_PP_EVALUATION, Getfile(value), Getline(value), "Could not evaluate expression '%s'\n", value);
 		if (msg)
-		  Swig_warning(WARN_PP_EVALUATION, Getfile(value), Getline(value), "Error: '%s'\n", msg);
+		  Swig_warning(WARN_PP_EVALUATION, Getfile(value), Getline(value), "%s\n", msg);
 		allow = 0;
 	      } else {
 		if (val)
@@ -1789,7 +1915,7 @@ String *Preprocessor_parse(String *s) {
 	  if (*c) {
 	    if (strncmp(c, "nowarn=", 7) == 0) {
 	      String *val = NewString(c + 7);
-	      String *nowarn = Preprocessor_replace(val);
+	      String *nowarn = Preprocessor_replace(val, NULL);
 	      Swig_warnfilter(nowarn, 1);
 	      Delete(nowarn);
 	      Delete(val);
@@ -1804,6 +1930,8 @@ String *Preprocessor_parse(String *s) {
 	Swig_error(Getfile(s), Getline(id), "cpp debug: level = %d, startlevel = %d\n", level, start_level);
       } else if (Equal(id, "")) {
 	/* Null directive */
+      } else if (is_digits(id)) {
+	/* A gcc linemarker of the form '# linenum filename flags' (resulting from running gcc -E) */
       } else {
 	/* Ignore unknown preprocessor directives which are inside an inactive
 	 * conditional (github issue #394). */
@@ -1881,7 +2009,7 @@ String *Preprocessor_parse(String *s) {
       if (!isidchar(c)) {
 	Ungetc(c, s);
 	/* Look for common SWIG directives  */
-	if (Equal(decl, kpp_dinclude) || Equal(decl, kpp_dimport) || Equal(decl, kpp_dextern)) {
+	if (Equal(decl, kpp_dinclude) || Equal(decl, kpp_dimport)) {
 	  /* Got some kind of file inclusion directive, eg: %import(option1="value1") "filename" */
 	  if (allow) {
 	    DOH *s1, *s2, *fn, *opt;
@@ -1889,11 +2017,6 @@ String *Preprocessor_parse(String *s) {
 	    String *filename_whitespace = NewStringEmpty();
 	    int sysfile = 0;
 
-	    if (Equal(decl, kpp_dextern)) {
-	      Swig_warning(WARN_DEPRECATED_EXTERN, Getfile(s), Getline(s), "%%extern is deprecated. Use %%import instead.\n");
-	      Clear(decl);
-	      Append(decl, "%%import");
-	    }
 	    skip_whitespace(s, options_whitespace);
 	    opt = get_options(s);
 
@@ -2040,8 +2163,7 @@ String *Preprocessor_parse(String *s) {
       break;
     default:
       Printf(stderr, "cpp: Invalid parser state %d\n", state);
-      abort();
-      break;
+      Exit(EXIT_FAILURE);
     }
   }
   while (level > 0) {

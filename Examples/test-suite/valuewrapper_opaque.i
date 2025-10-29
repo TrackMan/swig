@@ -4,13 +4,17 @@
  *  Opaque types
  */
 
+#ifdef SWIGOCAML
+%warnfilter(SWIGWARN_PARSE_KEYWORD) method;
+#endif
+
 %feature("valuewrapper") C;
 class C;
 
 %{
 template<typename T> class TemplateClass {
 public:
-TemplateClass<T>(T a) {}
+TemplateClass(T a) {}
 };
 
 struct B

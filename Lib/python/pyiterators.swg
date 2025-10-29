@@ -7,15 +7,17 @@
  * own iterators. As an example (real one since we use it for STL/STD
  * containers), the template SwigPyIterator_T does the
  * implementation for generic C++ iterators.
+ *
+ * The concept here is for a 'closed' iterator to implement a true Python
+ * iterator which raises a StopIteration at the end of an iteration over a range.
+ * An 'open' iterator is more like a traditional C++ iterator and does not
+ * raise a StopIteration.
  * ----------------------------------------------------------------------------- */
 
 %include <std_common.i>
 
 %fragment("SwigPyIterator","header",fragment="<stddef.h>") {
 namespace swig {
-  struct stop_iteration {
-  };
-
   struct SwigPyIterator {
   private:
     SwigPtr_PyObject _seq;
@@ -24,7 +26,12 @@ namespace swig {
     SwigPyIterator(PyObject *seq) : _seq(seq)
     {
     }
-      
+
+    void raise_stop_iteration() const
+    {
+      SWIG_SetErrorObj(PyExc_StopIteration, SWIG_Py_Void());
+    }
+
   public:
     virtual ~SwigPyIterator() {}
 
@@ -35,9 +42,11 @@ namespace swig {
     virtual SwigPyIterator *incr(size_t n = 1) = 0;
     
     // Backward iterator method, very common in C++, but not required in Python
+    // This default probably ought to instead raise some sort of unsupported exception
     virtual SwigPyIterator *decr(size_t /*n*/ = 1)
     {
-      throw stop_iteration();
+      raise_stop_iteration();
+      return NULL;
     }
 
     // Random access iterator methods, but not required in Python
@@ -58,7 +67,9 @@ namespace swig {
     {
       SWIG_PYTHON_THREAD_BEGIN_BLOCK; // disable threads       
       PyObject *obj = value();
-      incr();       
+      if (obj)
+        if (!incr())
+          obj = NULL;
       SWIG_PYTHON_THREAD_END_BLOCK; // re-enable threads
       return obj;     
     }
@@ -72,7 +83,8 @@ namespace swig {
     PyObject *previous()
     {
       SWIG_PYTHON_THREAD_BEGIN_BLOCK; // disable threads       
-      decr();
+      if (!decr())
+        return NULL;
       PyObject *obj = value();
       SWIG_PYTHON_THREAD_END_BLOCK; // re-enable threads       
       return obj;
@@ -95,12 +107,14 @@ namespace swig {
       
     SwigPyIterator& operator += (ptrdiff_t n)
     {
-      return *advance(n);
+      SwigPyIterator *ret = advance(n);
+      return ret ? *ret : *this;
     }
 
     SwigPyIterator& operator -= (ptrdiff_t n)
     {
-      return *advance(-n);
+      SwigPyIterator *ret = advance(-n);
+      return ret ? *ret : *this;
     }
       
     SwigPyIterator* operator + (ptrdiff_t n) const
@@ -119,12 +133,7 @@ namespace swig {
     }
       
     static swig_type_info* descriptor() {
-      static int init = 0;
-      static swig_type_info* desc = 0;
-      if (!init) {
-	desc = SWIG_TypeQuery("swig::SwigPyIterator *");
-	init = 1;
-      }	
+      static swig_type_info* desc = SWIG_TypeQuery("swig::SwigPyIterator *");
       return desc;
     }    
   };
@@ -132,7 +141,7 @@ namespace swig {
 %#if defined(SWIGPYTHON_BUILTIN)
   inline PyObject* make_output_iterator_builtin (PyObject *pyself)
   {
-    Py_INCREF(pyself);
+    SWIG_Py_INCREF(pyself);
     return pyself;
   }
 %#endif
@@ -223,6 +232,7 @@ namespace swig {
 
     SwigPyIterator *incr(size_t n = 1)
     {
+      // Open iterator does not raise StopIteration
       while (n--) {
 	++base::current;
       }
@@ -250,6 +260,7 @@ namespace swig {
 
     SwigPyIterator *decr(size_t n = 1)
     {
+      // Open iterator does not raise StopIteration
       while (n--) {
 	--base::current;
       }
@@ -276,7 +287,8 @@ namespace swig {
     
     PyObject *value() const {
       if (base::current == end) {
-	throw stop_iteration();
+	base::raise_stop_iteration();
+	return NULL;
       } else {
 	return from(static_cast<const value_type&>(*(base::current)));
       }
@@ -291,7 +303,8 @@ namespace swig {
     {
       while (n--) {
 	if (base::current == end) {
-	  throw stop_iteration();
+	  base::raise_stop_iteration();
+	  return NULL;
 	} else {
 	  ++base::current;
 	}
@@ -326,7 +339,8 @@ namespace swig {
     {
       while (n--) {
 	if (base::current == base0::begin) {
-	  throw stop_iteration();
+	  base0::raise_stop_iteration();
+	  return NULL;
 	} else {
 	  --base::current;
 	}
@@ -371,17 +385,15 @@ namespace swig {
 %fragment("SwigPyIterator");
 namespace swig 
 {
-  /*
-    Throw a StopIteration exception
-  */
-  %ignore stop_iteration;
-  struct stop_iteration {};
-  
-  %typemap(throws) stop_iteration {
-    (void)$1;
-    SWIG_SetErrorObj(PyExc_StopIteration, SWIG_Py_Void());
-    SWIG_fail;
-  }
+%typemap(out, noblock=1) SwigPyIterator * {
+  if (!$1) SWIG_fail;
+  $result = SWIG_NewPointerObj(SWIG_as_voidptr($1), $descriptor, $owner);
+}
+
+%typemap(out, noblock=1) SwigPyIterator & {
+  if (PyErr_Occurred()) SWIG_fail;
+  $result = SWIG_NewPointerObj(SWIG_as_voidptr($1), $descriptor, $owner);
+}
 
   /* 
      Mark methods that return new objects
@@ -402,24 +414,14 @@ namespace swig
   }
 #endif
 
-  %catches(swig::stop_iteration) SwigPyIterator::value() const;
-  %catches(swig::stop_iteration) SwigPyIterator::incr(size_t n = 1);
-  %catches(swig::stop_iteration) SwigPyIterator::decr(size_t n = 1);
   %catches(std::invalid_argument) SwigPyIterator::distance(const SwigPyIterator &x) const;
   %catches(std::invalid_argument) SwigPyIterator::equal (const SwigPyIterator &x) const;
-  %catches(swig::stop_iteration) SwigPyIterator::__next__();
-  %catches(swig::stop_iteration) SwigPyIterator::next();
-  %catches(swig::stop_iteration) SwigPyIterator::previous();
-  %catches(swig::stop_iteration) SwigPyIterator::advance(ptrdiff_t n);
-  %catches(swig::stop_iteration) SwigPyIterator::operator += (ptrdiff_t n);
-  %catches(swig::stop_iteration) SwigPyIterator::operator -= (ptrdiff_t n);
-  %catches(swig::stop_iteration) SwigPyIterator::operator + (ptrdiff_t n) const;
-  %catches(swig::stop_iteration) SwigPyIterator::operator - (ptrdiff_t n) const;
 
   struct SwigPyIterator
   {
   protected:
     SwigPyIterator(PyObject *seq);
+    void raise_stop_iteration();
 
   public:
     virtual ~SwigPyIterator();

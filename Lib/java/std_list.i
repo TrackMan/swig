@@ -22,6 +22,7 @@ SWIGINTERN jint SWIG_ListSize(size_t size) {
 }
 }
 
+%javamethodmodifiers std::list::push_back "private";
 %javamethodmodifiers std::list::begin "private";
 %javamethodmodifiers std::list::insert "private";
 %javamethodmodifiers std::list::doSize "private";
@@ -39,11 +40,12 @@ namespace std {
 
 %typemap(javabase) std::list<T> "java.util.AbstractSequentialList<$typemap(jboxtype, T)>"
 %proxycode %{
-  public $javaclassname(java.util.Collection c) {
+  @SuppressWarnings("this-escape")
+  public $javaclassname(java.util.Collection<? extends $typemap(jboxtype, T)> c) {
     this();
     java.util.ListIterator<$typemap(jboxtype, T)> it = listIterator(0);
     // Special case the "copy constructor" here to avoid lots of cross-language calls
-    for (Object o : c) {
+    for (java.lang.Object o : c) {
       it.add(($typemap(jboxtype, T))o);
     }
   }
@@ -53,7 +55,7 @@ namespace std {
   }
 
   public boolean add($typemap(jboxtype, T) value) {
-    addLast(value);
+    push_back(value);
     return true;
   }
 
@@ -66,7 +68,7 @@ namespace std {
         if (index < 0 || index > $javaclassname.this.size())
           throw new IndexOutOfBoundsException("Index: " + index);
         pos = $javaclassname.this.begin();
-	pos = pos.advance_unchecked(index);
+        pos = pos.advance_unchecked(index);
         return this;
       }
 
@@ -130,8 +132,12 @@ namespace std {
 
   public:
     typedef size_t size_type;
+    typedef ptrdiff_t difference_type;
     typedef T value_type;
-    typedef T &reference;
+    typedef value_type* pointer;
+    typedef const value_type* const_pointer;
+    typedef value_type& reference;
+    typedef const value_type& const_reference;
 
     /*
      * We'd actually be better off having the nested class *not* be static in the wrapper
@@ -164,7 +170,7 @@ namespace std {
 	  return **$self;
 	}
 
-	iterator advance_unchecked(size_type index) const {
+	iterator advance_unchecked(int index) const {
 	  std::list<T>::iterator ret = *$self;
 	  std::advance(ret, index);
 	  return ret;
@@ -173,31 +179,20 @@ namespace std {
     };
 
     list();
-    list(const list &other);
+    list(const list& other);
+
     %rename(isEmpty) empty;
     bool empty() const;
     void clear();
     %rename(remove) erase;
     iterator erase(iterator pos);
-    %rename(removeLast) pop_back;
-    void pop_back();
-    %rename(removeFirst) pop_front;
-    void pop_front();
-    %rename(addLast) push_back;
     void push_back(const T &value);
-    %rename(addFirst) push_front;
-    void push_front(const T &value);
     iterator begin();
     iterator end();
     iterator insert(iterator pos, const T &value);
 
     %extend {
       %fragment("SWIG_ListSize");
-      list(jint count) throw (std::out_of_range) {
-        if (count < 0)
-          throw std::out_of_range("list count must be positive");
-        return new std::list<T>(static_cast<std::list<T>::size_type>(count));
-      }
 
       list(jint count, const T &value) throw (std::out_of_range) {
         if (count < 0)

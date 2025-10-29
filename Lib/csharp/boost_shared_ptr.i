@@ -29,10 +29,10 @@
   }
   $1 = *argp; %}
 %typemap(out) CONST TYPE
-%{ $result = new SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE >(new $1_ltype(($1_ltype &)$1)); %}
+%{ $result = new SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE >(new $1_ltype($1)); %}
 
 %typemap(directorin) CONST TYPE
-%{ $input = new SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > (new $1_ltype((const $1_ltype &)$1)); %}
+%{ $input = new SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > (new $1_ltype(SWIG_STD_MOVE($1))); %}
 
 %typemap(directorout) CONST TYPE
 %{ if (!$input) {
@@ -122,7 +122,7 @@
 %typemap(in) SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > * ($*1_ltype tempnull)
 %{ $1 = $input ? ($1_ltype)$input : &tempnull; %}
 %typemap(out, fragment="SWIG_null_deleter") SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > *
-%{ $result = ($1 && *$1) ? new $*1_ltype(*($1_ltype)$1) : 0;
+%{ $result = ($1 && *$1) ? new $*1_ltype(*$1) : 0;
    if ($owner) delete $1; %}
 
 %typemap(directorin) SWIG_SHARED_PTR_QNAMESPACE::shared_ptr< CONST TYPE > *
@@ -282,7 +282,7 @@
   }
 %}
 
-%typemap(csdestruct, methodname="Dispose", methodmodifiers="public") TYPE {
+%typemap(csdisposing, methodname="Dispose", methodmodifiers="protected", parameters="bool disposing") TYPE {
     lock(this) {
       if (swigCPtr.Handle != global::System.IntPtr.Zero) {
         if (swigCMemOwnBase) {
@@ -291,11 +291,10 @@
         }
         swigCPtr = new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero);
       }
-      global::System.GC.SuppressFinalize(this);
     }
   }
 
-%typemap(csdestruct_derived, methodname="Dispose", methodmodifiers="public") TYPE {
+%typemap(csdisposing_derived, methodname="Dispose", methodmodifiers="protected", parameters="bool disposing") TYPE {
     lock(this) {
       if (swigCPtr.Handle != global::System.IntPtr.Zero) {
         if (swigCMemOwnDerived) {
@@ -304,8 +303,7 @@
         }
         swigCPtr = new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero);
       }
-      global::System.GC.SuppressFinalize(this);
-      base.Dispose();
+      base.Dispose(disposing);
     }
   }
 

@@ -1,7 +1,7 @@
 from operator_overload import *
 
 # first check all the operators are implemented correctly from pure C++ code
-Op_sanity_check()
+Op.sanity_check()
 
 pop = Op(6)/Op(3)
 
@@ -75,3 +75,10 @@ if not -a==a:
 if not -b==Op(-5):
   raise RuntimeError("-b==Op(-5)")
 
+# test functors
+if not b()==5:
+  raise RuntimeError("functor")
+if not b(1)==6:
+  raise RuntimeError("functor")
+if not b(1, 2)==8:
+  raise RuntimeError("functor")

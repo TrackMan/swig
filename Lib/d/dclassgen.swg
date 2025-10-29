@@ -33,7 +33,7 @@
 // We do not use »override« attribute for generated dispose() methods to stay
 // somewhat compatible to Phobos and older Tango versions where Object.dispose()
 // does not exist.
-%typemap(ddispose, methodname="dispose", methodmodifiers="public") SWIGTYPE {
+%typemap(ddispose, methodname="dispose", methodmodifiers="public", parameters="") SWIGTYPE {
   synchronized(this) {
     if (swigCPtr !is null) {
       if (swigCMemOwn) {
@@ -45,7 +45,7 @@
   }
 }
 
-%typemap(ddispose_derived, methodname="dispose", methodmodifiers="public") SWIGTYPE {
+%typemap(ddispose_derived, methodname="dispose", methodmodifiers="public", parameters="") SWIGTYPE {
   synchronized(this) {
     if (swigCPtr !is null) {
       if (swigCMemOwn) {
@@ -76,6 +76,19 @@ public static void* swigGetCPtr(typeof(this) obj) {
   return (obj is null) ? null : obj.swigCPtr;
 }
 
+public static void* swigRelease(typeof(this) obj) {
+  if (obj !is null) {
+    if (!obj.swigCMemOwn)
+      throw new Exception("Cannot release ownership as memory is not owned");
+    void* ptr = obj.swigCPtr;
+    obj.swigCMemOwn = false;
+    obj.dispose();
+    return ptr;
+  } else {
+    return null;
+  }
+}
+
 mixin $imdmodule.SwigOperatorDefinitions;
 %}
 
@@ -92,6 +105,19 @@ public static void* swigGetCPtr(typeof(this) obj) {
   return (obj is null) ? null : obj.swigCPtr;
 }
 
+public static void* swigRelease(typeof(this) obj) {
+  if (obj !is null) {
+    if (!obj.swigCMemOwn)
+      throw new Exception("Cannot release ownership as memory is not owned");
+    void* ptr = obj.swigCPtr;
+    obj.swigCMemOwn = false;
+    obj.dispose();
+    return ptr;
+  } else {
+    return null;
+  }
+}
+
 mixin $imdmodule.SwigOperatorDefinitions;
 %}
 
@@ -100,7 +126,7 @@ mixin $imdmodule.SwigOperatorDefinitions;
  * Type wrapper classes.
  */
 
-%typemap(dbody) SWIGTYPE *, SWIGTYPE &, SWIGTYPE [] %{
+%typemap(dbody) SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [] %{
 private void* swigCPtr;
 
 public this(void* cObject, bool futureUse) {
@@ -112,6 +138,10 @@ protected this() {
 }
 
 public static void* swigGetCPtr(typeof(this) obj) {
+  return (obj is null) ? null : obj.swigCPtr;
+}
+
+public static void* swigRelease(typeof(this) obj) {
   return (obj is null) ? null : obj.swigCPtr;
 }
 

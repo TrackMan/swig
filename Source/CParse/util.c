@@ -4,7 +4,7 @@
  * terms also apply to certain portions of SWIG. The full details of the SWIG
  * license and copyrights can be found in the LICENSE and COPYRIGHT files
  * included with the SWIG source code as distributed by the SWIG developers
- * and at http://www.swig.org/legal.html.
+ * and at https://www.swig.org/legal.html.
  *
  * util.c
  *
@@ -112,12 +112,12 @@ void cparse_normalize_void(Node *n) {
 }
 
 /* -----------------------------------------------------------------------------
- * new_node()
+ * Swig_cparse_new_node()
  *
  * Create an empty parse node, setting file and line number information
  * ----------------------------------------------------------------------------- */
 
-Node *new_node(const_String_or_char_ptr tag) {
+Node *Swig_cparse_new_node(const_String_or_char_ptr tag) {
   Node *n = NewHash();
   set_nodeType(n,tag);
   Setfile(n,cparse_file);
