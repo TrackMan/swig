@@ -298,7 +298,7 @@ public:
 	  Swig_mark_arg(i);
 	  mono_aot_compatibility_flag = true;
 	}
-	 else if (strcmp(argv[i], "-help") == 0) {
+	else if (strcmp(argv[i], "-help") == 0) {
 	  Printf(stdout, "%s\n", usage);
 	}
       }
@@ -2875,6 +2875,9 @@ public:
     if (Getattr(n, "feature:cs:defaultargs") && Getattr(n, "defaultargs"))
       return SWIG_OK;
 
+    if (Getattr(n, "feature:cs:defaultargs") && Getattr(n, "defaultargs"))
+      return SWIG_OK;
+
     if (proxy_flag) {
       String *overloaded_name = getOverloadedName(n);
       String *mangled_overname = Swig_name_construct(getNSpace(), overloaded_name);
@@ -3807,6 +3810,24 @@ public:
   }
 
   /* -----------------------------------------------------------------------------
+   * typemapExists()
+   * n - for input only and must contain info for Getfile(n) and Getline(n) to work
+   * tmap_method - typemap method name
+   * type - typemap type to lookup
+   * returns found typemap or NULL if not found
+   * ----------------------------------------------------------------------------- */
+
+  const String *typemapExists(Node *n, const_String_or_char_ptr tmap_method, SwigType *type) {
+    Node *node = NewHash();
+    Setattr(node, "type", type);
+    Setfile(node, Getfile(n));
+    Setline(node, Getline(n));
+    const String *tm = Swig_typemap_lookup(tmap_method, node, "", 0);
+    Delete(node);
+    return tm;
+  }
+
+  /* -----------------------------------------------------------------------------
    * canThrow()
    * Determine whether the code in the typemap can throw a C# exception.
    * If so, note it for later when excodeSubstitute() is called.
@@ -3987,15 +4008,15 @@ public:
       if (!mono_aot_compatibility_flag)	{
 	Printf(code_wrap->def, "%s::SWIG_Callback%s_t callback%s", dirclassname, methid, methid);
       } else {
-	Printf(code_wrap->def, "%s::SWIG_Callback%s_Dispatcher_t callback%sStatic, ", dirclassname, methid, methid);      
-	Printf(code_wrap->def, "void* callback%s", methid);      
+	Printf(code_wrap->def, "%s::SWIG_Callback%s_Dispatcher_t callback%sStatic, ", dirclassname, methid, methid);
+	Printf(code_wrap->def, "void* callback%s", methid);
 	Printf(code_wrap->code, "callback%sStatic, ", methid);
       }
-      
+
       Printf(code_wrap->code, "callback%s", methid);
       if (!mono_aot_compatibility_flag) {
 	Printf(imclass_class_code, ", %s.SwigDelegate%s_%s delegate%s", qualified_classname, sym_name, methid, methid);
-      } else { 
+      } else {
 	Printf(imclass_class_code, ", %s.SwigDelegate%s_%s_Dispatcher delegate%s_dispatcher", qualified_classname, sym_name, methid, methid);
 	Printf(imclass_class_code, ", global::System.IntPtr delegate%sgcHandlePtr", methid);
       }
@@ -4134,7 +4155,7 @@ public:
       }
     }
 
-    /* Create the intermediate class wrapper */
+    if (!ignored_method) {/* Create the intermediate class wrapper */
     tm = Swig_typemap_lookup("imtype", n, "", 0);
     if (tm) {
       String *imtypeout = Getattr(n, "tmap:imtype:out");	// the type in the imtype typemap's out attribute overrides the type in the typemap
@@ -4155,8 +4176,7 @@ public:
     	Printf(callback_mono_aot_def, "\n  [%s.MonoPInvokeCallback(typeof(SwigDelegate%s_%s_Dispatcher))]\n", imclass_name, classname, methid);
     	Printf(callback_mono_aot_def, "  private static %s SwigDirector%s_Dispatcher(", tm, overloaded_name);
       }
-      Printf(callback_def, "  private %s SwigDirectorMethod%s(", tm, overloaded_name);
-      if (!ignored_method) {
+	Printf(callback_def, "  private %s SwigDirectorMethod%s(", tm, overloaded_name);
 	const String *csdirectordelegatemodifiers = Getattr(n, "feature:csdirectordelegatemodifiers");
 	String *modifiers = (csdirectordelegatemodifiers ? NewStringf("%s%s", csdirectordelegatemodifiers, Len(csdirectordelegatemodifiers) > 0 ? " " : "") : NewStringf("public "));
 	Printf(director_delegate_definitions, "  %sdelegate %s", modifiers, tm);
@@ -4417,7 +4437,7 @@ public:
 
     if (mono_aot_compatibility_flag) {
       Printf(callback_mono_aot_def, "global::System.IntPtr swigDelegate%s_%s_Handle%s%s)", classname, methid, ParmList_len(l) > 0 ? ", " : "", delegate_parms);
-      Printf(callback_mono_aot_def, " {\n");	    
+      Printf(callback_mono_aot_def, " {\n");
     }
 
     /* Emit the intermediate class's upcall to the actual class */
@@ -4484,7 +4504,7 @@ public:
       } else {
 	Printf(w->code, "swig_callback%s_dispatcher(swig_callback%s%s%s);\n", overloaded_name, overloaded_name, Len(jupcall_args) > 0 ? ", " : "", jupcall_args);
       }
- 
+
       if (!is_void) {
 	String *jresult_str = NewString("jresult");
 	String *result_str = NewString("c_result");
@@ -4564,6 +4584,8 @@ public:
 
     if (!ignored_method) {
       /* Use the previously registered upcall data */
+      String *member_name = Swig_name_member(getNSpace(), getClassPrefix(), overloaded_name);
+      String *imclass_dmethod = NewStringf("SwigDirector_%s", member_name);
       UpcallData *udata = Getattr(n, "upcalldata");
       String *methid = Getattr(udata, "class_methodidx");
       /*
@@ -4585,11 +4607,14 @@ public:
 	Printf(director_mono_aot_delegate_definitions, " SwigDelegate%s_%s_Dispatcher(global::System.IntPtr swigDelegate%s_%s_Handle%s%s);\n", classname, methid, classname, methid, ParmList_len(l) > 0 ? ", " : "", delegate_parms);
 	Printf(director_mono_aot_delegate_instances, "  private SwigDelegate%s_%s_Dispatcher swigDelegate%sdispatcher;\n", classname, methid, methid);
       }
-      
+
       Printf(director_delegate_definitions, " SwigDelegate%s_%s(%s);\n", classname, methid, delegate_parms);
       Printf(director_delegate_instances, "  private SwigDelegate%s_%s swigDelegate%s;\n", classname, methid, methid);
       Printf(director_method_types, "  private static global::System.Type[] swigMethodTypes%s = new global::System.Type[] { %s };\n", methid, proxy_method_types);
       Printf(director_connect_parms, "SwigDirector%s%s delegate%s", classname, methid, methid);
+
+      Delete(imclass_dmethod);
+      Delete(member_name);
     }
 
     Delete(pre_code);
