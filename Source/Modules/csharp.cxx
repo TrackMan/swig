@@ -3810,24 +3810,6 @@ public:
   }
 
   /* -----------------------------------------------------------------------------
-   * typemapExists()
-   * n - for input only and must contain info for Getfile(n) and Getline(n) to work
-   * tmap_method - typemap method name
-   * type - typemap type to lookup
-   * returns found typemap or NULL if not found
-   * ----------------------------------------------------------------------------- */
-
-  const String *typemapExists(Node *n, const_String_or_char_ptr tmap_method, SwigType *type) {
-    Node *node = NewHash();
-    Setattr(node, "type", type);
-    Setfile(node, Getfile(n));
-    Setline(node, Getline(n));
-    const String *tm = Swig_typemap_lookup(tmap_method, node, "", 0);
-    Delete(node);
-    return tm;
-  }
-
-  /* -----------------------------------------------------------------------------
    * canThrow()
    * Determine whether the code in the typemap can throw a C# exception.
    * If so, note it for later when excodeSubstitute() is called.
