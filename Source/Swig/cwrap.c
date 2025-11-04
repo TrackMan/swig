@@ -393,20 +393,16 @@ String *Swig_cfunction_call(const_String_or_char_ptr name, ParmList *parms) {
 
   while (p) {
     SwigType *pt = Getattr(p, "type");
-    if ((SwigType_type(pt) != T_VOID)) {
-      SwigType *rpt = SwigType_typedef_resolve_all(pt);
+    SwigType *rpt = SwigType_typedef_resolve_all(pt);
+    if ((SwigType_type(rpt) != T_VOID)) {
       String *pname = Swig_cparm_name(p, i);
       String *rcaststr = SwigType_rcaststr(rpt, pname);
-
-      if (comma) {
+      if (comma)
 	Append(func, ",");
-      }
-
       if (cparse_cplusplus && SwigType_type(rpt) == T_USER)
 	Printv(func, "SWIG_STD_MOVE(", rcaststr, ")", NIL);
       else
 	Printv(func, rcaststr, NIL);
-
       Delete(rpt);
       Delete(pname);
       Delete(rcaststr);
@@ -435,7 +431,6 @@ static String *Swig_cmethod_call(const_String_or_char_ptr name, ParmList *parms,
   String *func, *nname;
   int i = 0;
   Parm *p = parms;
-  SwigType *pt;
   int comma = 0;
 
   func = NewStringEmpty();
@@ -460,7 +455,7 @@ static String *Swig_cmethod_call(const_String_or_char_ptr name, ParmList *parms,
     Replaceall(func, "this", rcaststr);
     Delete(rcaststr);
   } else {
-    pt = Getattr(p, "type");
+    SwigType *pt = Getattr(p, "type");
 
     /* If the method is invoked through a dereferenced pointer, we don't add any casts
        (needed for smart pointers).  Otherwise, we cast to the appropriate type */
@@ -496,13 +491,14 @@ static String *Swig_cmethod_call(const_String_or_char_ptr name, ParmList *parms,
   i++;
   p = nextSibling(p);
   while (p) {
-    pt = Getattr(p, "type");
-    if ((SwigType_type(pt) != T_VOID)) {
+    SwigType *pt = Getattr(p, "type");
+    SwigType *rpt = SwigType_typedef_resolve_all(pt);
+    if ((SwigType_type(rpt) != T_VOID)) {
       String *pname = Swig_cparm_name(p, i);
       String *rcaststr = SwigType_rcaststr(pt, pname);
       if (comma)
 	Append(func, ",");
-      if (cparse_cplusplus && SwigType_type(pt) == T_USER)
+      if (cparse_cplusplus && SwigType_type(rpt) == T_USER)
 	Printv(func, "SWIG_STD_MOVE(", rcaststr, ")", NIL);
       else
 	Printv(func, rcaststr, NIL);
@@ -551,7 +547,6 @@ static String *Swig_cppconstructor_base_call(const_String_or_char_ptr name, Parm
   int i = 0;
   int comma = 0;
   Parm *p = parms;
-  SwigType *pt;
   if (skip_self) {
     if (p)
       p = nextSibling(p);
@@ -561,8 +556,9 @@ static String *Swig_cppconstructor_base_call(const_String_or_char_ptr name, Parm
   func = NewStringEmpty();
   Printf(func, "new %s(", nname);
   while (p) {
-    pt = Getattr(p, "type");
-    if ((SwigType_type(pt) != T_VOID)) {
+    SwigType *pt = Getattr(p, "type");
+    SwigType *rpt = SwigType_typedef_resolve_all(pt);
+    if ((SwigType_type(rpt) != T_VOID)) {
       String *rcaststr = 0;
       String *pname = 0;
       if (comma)
@@ -578,7 +574,7 @@ static String *Swig_cppconstructor_base_call(const_String_or_char_ptr name, Parm
 	  pname = Copy(Getattr(p, "name"));
       }
       rcaststr = SwigType_rcaststr(pt, pname);
-      if (cparse_cplusplus && SwigType_type(pt) == T_USER)
+      if (cparse_cplusplus && SwigType_type(rpt) == T_USER)
 	Printv(func, "SWIG_STD_MOVE(", rcaststr, ")", NIL);
       else
 	Printv(func, rcaststr, NIL);
@@ -1248,7 +1244,7 @@ int Swig_ConstructorToFunction(Node *n, const_String_or_char_ptr nspace, String 
 	Replaceall(tmp_none_comparison, "$arg", "arg1");
 
 	director_call = Swig_cppconstructor_director_call(directorname, directorparms);
-	nodirector_call = Swig_cppconstructor_nodirector_call(classname, parms);
+	nodirector_call = prefix_args ? Swig_cppconstructor_director_call(classname, parms) : Swig_cppconstructor_nodirector_call(classname, parms);
 
 	if (abstract) {
 	  /* whether or not the abstract class has been subclassed in python,
