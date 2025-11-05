@@ -75,6 +75,15 @@ intermediary_classname.cpptest: SWIGOPT += -dllimport intermediary_classname
 %.cpptest:
 	$(setup)
 	+(cd $* && $(swig_and_compile_cpp))
+	@echo "========== Generated C# files for $* =========="
+	@for csfile in $*/*.cs; do \
+	  if [ -f "$$csfile" ]; then \
+	    echo ""; \
+	    echo "---------- $$csfile ----------"; \
+	    cat "$$csfile"; \
+	  fi; \
+	done
+	@echo "========== End of generated C# files =========="
 	+$(run_testcase)
 
 %.ctest:
