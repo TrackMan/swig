@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>@TEST_NAME@</AssemblyName>
+    <RootNamespace>@TEST_NAME@Namespace</RootNamespace>
+    <AllowUnsafeBlocks>@ALLOW_UNSAFE@</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- Generate AssemblyInfo to add InternalsVisibleTo -->
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>@TEST_NAME@_runme</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Include all generated C# wrapper files -->
+    <Compile Include="*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'@NEEDS_NUMERICS@' == 'true'">
+    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
+  </ItemGroup>
+
+  <!-- Copy native libraries to output directory -->
+  <ItemGroup>
+    <None Include="*.dylib" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="*.so" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="*.dll" CopyToOutputDirectory="PreserveNewest" Condition="'$(OS)' == 'Windows_NT'" />
+  </ItemGroup>
+
+</Project>
+
