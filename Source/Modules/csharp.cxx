@@ -129,6 +129,7 @@ public:
       old_variable_names(false),
       generate_property_declaration_flag(false),
       doxygen(false),
+	  mono_aot_compatibility_flag(false),
       imclass_name(NULL),
       module_class_name(NULL),
       imclass_class_code(NULL),
@@ -4316,7 +4317,19 @@ public:
 		Printf(imcall_args, ", ");
 	      }
 	      Printf(delegate_parms, "%s%s %s", im_directorinattributes ? im_directorinattributes : empty_string, tm, ln);
-	      Printf(mono_aot_dispatcher_parms, "%s", ln);
+	      // Check if the parameter has out or ref modifier and add it to the dispatcher call
+	      // Check both im_directorinattributes and the imtype typemap itself
+	      bool has_out = (im_directorinattributes && (Strstr(im_directorinattributes, "out ") || Strstr(im_directorinattributes, "out\t"))) ||
+	                     (tm && (Strstr(tm, "out ") || Strstr(tm, "out\t")));
+	      bool has_ref = (im_directorinattributes && (Strstr(im_directorinattributes, "ref ") || Strstr(im_directorinattributes, "ref\t"))) ||
+	                     (tm && (Strstr(tm, "ref ") || Strstr(tm, "ref\t")));
+	      if (has_out) {
+	        Printf(mono_aot_dispatcher_parms, "out %s", ln);
+	      } else if (has_ref) {
+	        Printf(mono_aot_dispatcher_parms, "ref %s", ln);
+	      } else {
+	        Printf(mono_aot_dispatcher_parms, "%s", ln);
+	      }
 
 	      if (Cmp(din, ln)) {
 		Printv(imcall_args, din, NIL);
