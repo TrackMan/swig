@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # Required for OIDC authentication
 
 jobs:
   cmake:
@@ -34,6 +35,7 @@ jobs:
 
     env:
       BUILD_SYS: Visual Studio ${{ matrix.VER }}
+      SWIG_INSTALL_PATH: C:\Tools\swig
 
     steps:
     - name: Machine Info
@@ -72,7 +74,7 @@ jobs:
       run: |
           cmake --version
           cmake -G "$env:BUILD_SYS" -A x64 `
-          -DCMAKE_INSTALL_PREFIX="C:\Tools\swig" `
+          -DCMAKE_INSTALL_PREFIX="$env:SWIG_INSTALL_PATH" `
           -DCMAKE_C_FLAGS="/W3 /EHsc /DPCRE2_STATIC" `
           -DCMAKE_CXX_FLAGS="/W3 /EHsc /DPCRE2_STATIC" `
           -DPCRE2_INCLUDE_DIR="$env:PCRE2_PATH\include" `
@@ -90,7 +92,57 @@ jobs:
           ctest --output-on-failure -V -C Release
 
     - name: Install
+      id: install-swig
       shell: powershell
       run: |
           cmake --install .
-          C:\Tools\swig\bin\swig.exe -version
+          $versionOutput = & "$env:SWIG_INSTALL_PATH\bin\swig.exe" -version
+          Write-Host $versionOutput
+          
+          # Extract version number (e.g., "SWIG Version 4.2.0" -> "4.2.0")
+          $version = ($versionOutput | Select-String -Pattern "SWIG Version (\d+\.\d+\.\d+)").Matches.Groups[1].Value
+          echo "SWIG_VERSION=$version" >> $env:GITHUB_OUTPUT
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Install Azure DevOps CLI Extension
+      shell: powershell
+      run: |
+          az extension add --name azure-devops
+
+    - name: Get Azure DevOps Token
+      id: get-devops-token
+      shell: bash
+      run: |
+        TOKEN=$(az account get-access-token \
+          --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+          --query accessToken -o tsv)
+        echo "::add-mask::$TOKEN"
+        echo "ADO_TOKEN=$TOKEN" >> $GITHUB_OUTPUT
+
+    - name: Publish Universal Package
+      shell: powershell
+      env:
+        SWIG_VERSION: ${{ steps.install-swig.outputs.SWIG_VERSION }}
+        AZURE_DEVOPS_EXT_PAT: ${{ steps.get-devops-token.outputs.ADO_TOKEN }}
+      run: |
+          $packageName = "swig-windows-tm"
+          $packageVersion = "$env:SWIG_VERSION-${{ github.sha }}"
+          
+          # Create a description file
+          $description = "SWIG Windows build using Visual Studio ${{ matrix.VER }} - Built from commit ${{ github.sha }}"
+          
+          az artifacts universal publish `
+            --organization "https://dev.azure.com/trackman" `
+            --feed Main `
+            --scope organization `
+            --name $packageName `
+            --version $packageVersion `
+            --description $description `
+            --path "$env:SWIG_INSTALL_PATH"
+
