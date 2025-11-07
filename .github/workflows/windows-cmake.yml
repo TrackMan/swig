@@ -24,7 +24,7 @@ permissions:
 jobs:
   cmake:
     runs-on: ${{ matrix.os }}
-
+    environment: Development
     name: CMake VS ${{ matrix.VER }}
 
     strategy:
