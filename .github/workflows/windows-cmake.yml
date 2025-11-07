@@ -48,6 +48,13 @@ jobs:
       with:
         show-progress: false
 
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
     - name: Install CCache
       uses: hendrikmuhs/ccache-action@v1
       with:
@@ -102,13 +109,6 @@ jobs:
           # Extract version number (e.g., "SWIG Version 4.2.0" -> "4.2.0")
           $version = ($versionOutput | Select-String -Pattern "SWIG Version (\d+\.\d+\.\d+)").Matches.Groups[1].Value
           echo "SWIG_VERSION=$version" >> $env:GITHUB_OUTPUT
-
-    - name: Azure Login
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
     - name: Install Azure DevOps CLI Extension
       shell: powershell
